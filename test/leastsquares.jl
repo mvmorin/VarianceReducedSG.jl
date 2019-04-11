@@ -20,7 +20,22 @@ function setup_ls(N, n, mt)
 	norm_consts = [norm(A[i,:]) for i = 1:size(A,1)]
 	data = [A[i,:]./norm_consts[i] for i = 1:size(A,1)]
 	b = [y[i]/norm_consts[i] for i = 1:length(y)]
-	return data, b, x_star
+
+	# Initial guess
+	x0 = randn(mt, N)
+
+	return data, b, x0, x_star
+end
+
+function solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	iterate!(alg, nstages, loggers, iterperlog)
+	@test isapprox(primiterates(alg), x_star)
+
+	iterate!(alg, nstages, NoLog(), iterperlog)
+	@test isapprox(primiterates(alg), x_star)
+
+	iterate!(alg, nstages, loggers, iterperlog)
+	@test isapprox(primiterates(alg), x_star)
 end
 
 ################################################################################
@@ -31,7 +46,7 @@ function SAGA_VRGradient()
 	n = 1000
 	mt = MersenneTwister(123)
 
-	data, b, x_star = setup_ls(N,n,mt)
+	data, b, x0, x_star = setup_ls(N,n,mt)
 
 	# Gradients of square cost
 	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
@@ -39,12 +54,8 @@ function SAGA_VRGradient()
 	# VR gradient
 	vrg = VRGradient(f, zeros(N), n)
 	
-	# Primal iterates and initial value
-	x = zeros(N)
-	x0 = randn(mt, N)
-
 	# Create Algorithm
-	alg = SAGA(1/3, mt, x, x0, vrg)
+	alg = SAGA(1/3, zeros(N), vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -59,14 +70,7 @@ function SAGA_VRGradient()
 	# Solve
 	nstages = n*500
 	iterperlog = Int(floor(nstages/10))
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages, NoLog(), iterperlog)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
 
 function SAGA_LinearVRG()
@@ -74,7 +78,7 @@ function SAGA_LinearVRG()
 	n = 1000
 	mt = MersenneTwister(123)
 
-	data, b, x_star = setup_ls(N,n,mt)
+	data, b, x0, x_star = setup_ls(N,n,mt)
 
 	# Gradients of square cost
 	f(x,i) = sqgrad(x - b[i])
@@ -82,12 +86,8 @@ function SAGA_LinearVRG()
 	# VR gradient
 	vrg = LinearVRG(f, data, zeros(N))
 	
-	# Primal iterates and initial value
-	x = zeros(N)
-	x0 = randn(mt, N)
-
 	# Create Algorithm
-	alg = SAGA(1/3, mt, x, x0, vrg)
+	alg = SAGA(1/3, zeros(N), vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -101,19 +101,49 @@ function SAGA_LinearVRG()
 	# Solve
 	nstages = n*500
 	iterperlog = Int(floor(nstages/10))
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages, NoLog(), iterperlog)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
+
+function SAGA_VRGradient_Importance()
+	N = 100
+	n = 1000
+	mt = MersenneTwister(123)
+
+	data, b, x0, x_star = setup_ls(N,n,mt)
+
+	# Gradients of square cost
+	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
+
+	# VR gradient
+	vrg = VRGradient(f, zeros(N), n)
+	
+	# Randomize a sample weighting
+	w = .1 .+ rand(mt,n)
+
+	# Create Algorithm
+	alg = SAGA(1/3, zeros(N), vrg, x0, mt, w)
+
+	# Create Loggers
+	fprog(x,y) = norm(x - x_star)
+
+	loggers = (
+		ShowTime(),
+		ShowIterations(),
+		ShowFuncVal(fprog, "|| x - x^*||"),
+		ShowNewline("EOL")
+		)
+
+	# Solve
+	nstages = n*500
+	iterperlog = Int(floor(nstages/10))
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+end
+
 
 @testset "SAGA - Least Squares" begin
 	SAGA_VRGradient()
 	SAGA_LinearVRG()
+	SAGA_VRGradient_Importance()
 end
 
 
@@ -125,7 +155,7 @@ function SVRG_VRGradient()
 	n = 1000
 	mt = MersenneTwister(123)
 
-	data, b, x_star = setup_ls(N,n,mt)
+	data, b, x0, x_star = setup_ls(N,n,mt)
 
 	# Gradients of square cost
 	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
@@ -133,12 +163,8 @@ function SVRG_VRGradient()
 	# VR gradient
 	vrg = VRGradient(f, zeros(N), n)
 	
-	# Primal iterates and initial value
-	x = zeros(N)
-	x0 = randn(mt, N)
-
 	# Create Algorithm
-	alg = SVRG(1/3, Int(ceil(n/2)), mt, x, x0, vrg)
+	alg = SVRG(1/3, Int(ceil(n/2)), zeros(N), vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -151,14 +177,7 @@ function SVRG_VRGradient()
 	# Solve
 	nstages = 100
 	iterperlog = Int(floor(nstages*n/2/10))
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
-
-	iterate!(alg, nstages)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
 
 function SVRG_UniformVRG()
@@ -166,7 +185,7 @@ function SVRG_UniformVRG()
 	n = 1000
 	mt = MersenneTwister(123)
 
-	data, b, x_star = setup_ls(N,n,mt)
+	data, b, x0, x_star = setup_ls(N,n,mt)
 
 	# Gradients of square cost
 	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
@@ -174,12 +193,42 @@ function SVRG_UniformVRG()
 	# VR gradient
 	vrg = UniformVRG(f, zeros(N), n)
 	
-	# Primal iterates and initial value
-	x = zeros(N)
-	x0 = randn(mt, N)
-
 	# Create Algorithm
-	alg = SVRG(1/3, Int(ceil(n/2)), mt, x, x0, vrg)
+	alg = SVRG(1/3, Int(ceil(n/2)), zeros(N), vrg, x0, mt)
+
+	# Create Loggers
+	fprog(x,y) = norm(x - x_star)
+
+	loggers = (
+		ShowIterations(),
+		ShowFuncVal(fprog, "|| x - x^*||"),
+		ShowNewline("EOL")
+		)
+
+	# Solve
+	nstages = 100
+	iterperlog = Int(floor(nstages*n/2/10))
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+end
+
+function SVRG_UniformVRG_Importance()
+	N = 100
+	n = 1000
+	mt = MersenneTwister(123)
+
+	data, b, x0, x_star = setup_ls(N,n,mt)
+
+	# Gradients of square cost
+	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
+
+	# VR gradient
+	vrg = UniformVRG(f, zeros(N), n)
+	
+	# Randomize a sample weighting
+	w = .1 .+ rand(mt,n)
+	
+	# Create Algorithm
+	alg = SVRG(1/3, Int(ceil(n/2)), zeros(N), vrg, x0, mt, w)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -192,19 +241,13 @@ function SVRG_UniformVRG()
 	# Solve
 	nstages = 100
 	iterperlog = Int(floor(nstages*n/2/10))
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages)
-	@test isapprox(primiterates(alg), x_star)
-	
-	iterate!(alg, nstages, loggers, iterperlog)
-	@test isapprox(primiterates(alg), x_star)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
 
 @testset "SVRG - Least Squares" begin
 	SVRG_VRGradient()
 	SVRG_UniformVRG()
+	SVRG_UniformVRG_Importance()
 end
 
 end
