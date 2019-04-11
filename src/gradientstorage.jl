@@ -3,25 +3,18 @@ export VRGradient, LinearVRG, UniformVRG
 ################################################################################
 # Variance Reduced Gradient Storage
 ################################################################################
-abstract type AbstractVRGradient end
+abstract type AbstractVRGradient{N} end
 
-nfunc(vrg::AbstractVRGradient) = not_implemented()
+nfunc(vrg::AbstractVRGradient{N}) where N = N
 
 Base.getindex(vrg::AbstractVRGradient, i::Int) = not_implemented()
-
 reset!(vrg::AbstractVRGradient) = not_implemented()
-
 store_grad!(vrg::AbstractVRGradient, x, ids) = not_implemented()
-
 add_grad!(res, vrg::AbstractVRGradient, x, i, step) = not_implemented()
-
 add_approx!(res, vrg::AbstractVRGradient, step) = not_implemented()
-
 add_vrgrad!(res, vrg::AbstractVRGradient, x, i, step_innv, step_approx) =
 	not_implemented()
-
 addandstore_grad!(res, vrg::AbstractVRGradient, x, i, step) = not_implemented()
-
 addandstore_vrgrad!(
 		res, vrg::AbstractVRGradient, x, i, step_innv, step_approx) =
 	not_implemented()
@@ -51,23 +44,20 @@ addandstore_vrgrad!(x, vrg::AbstractVRGradient, i, step_innv, step_approx) =
 
 
 ################################################################################
-struct VRGradient{T<:Real, Vg<:AbstractArray{T}, GF} <: AbstractVRGradient
+struct VRGradient{T<:Real, Vg<:AbstractArray{T}, GF, N} <: AbstractVRGradient{N}
 	grad!::GF
 	ysum::Vg
 	y::Vector{Vg}	
 	buf::Vg
-	n::Int
 
 	function VRGradient(grad, buf, n)
 		ysum = similar(buf)
 		y = [similar(buf) for _ = 1:n]
-		vrg = new{eltype(buf), typeof(buf), typeof(grad)}(grad, ysum, y, buf, n)
+		vrg = new{eltype(buf), typeof(buf), typeof(grad), n}(grad, ysum, y, buf)
 		reset!(vrg)
 		return vrg
 	end
 end
-
-nfunc(vrg::VRGradient) = vrg.n
 
 Base.getindex(vrg::VRGradient, i::Int) = vrg.y[i]
 
@@ -92,7 +82,7 @@ function add_grad!(res, vrg::VRGradient, x, i, step)
 end
 
 function add_approx!(res, vrg::VRGradient, step)
-	res .+= step./vrg.n.*vrg.ysum
+	res .+= step./nfunc(vrg).*vrg.ysum
 end
 
 function add_vrgrad!(res, vrg::VRGradient, x, i, step_innv, step_approx)
@@ -110,7 +100,7 @@ end
 
 function addandstore_vrgrad!(res, vrg::VRGradient, x, i, step_innv, step_approx)
 	vrg.grad!(vrg.buf, x, i)
-	res .+= step_innv.*(vrg.buf .- vrg.y[i]) .+ step_approx./vrg.n.*vrg.ysum
+	res .+= step_innv.*(vrg.buf.-vrg.y[i]) .+ step_approx./nfunc(vrg).*vrg.ysum
 	vrg.ysum .+= vrg.buf .- vrg.y[i]
 	vrg.y[i] .= vrg.buf
 end
@@ -121,27 +111,25 @@ end
 ################################################################################
 struct LinearVRG{
 		T<:Real, Vg<:AbstractArray{T}, D<:AbstractArray{T},
-		Vd<:AbstractArray{D}, GF
-		} <: AbstractVRGradient
+		Vd<:AbstractArray{D}, GF, N
+		} <: AbstractVRGradient{N}
 	grad::GF
 	ysum::Vg
 	y::Vector{T}
 	data::Vd
-	n::Int
 	
 	function LinearVRG(grad, data, buf)
 		y = Vector{eltype(buf)}(undef, length(data))
 		vrg = new{
-				eltype(buf),typeof(buf),eltype(data),typeof(data),typeof(grad)
+				eltype(buf), typeof(buf), eltype(data),
+				typeof(data), typeof(grad), length(data)
 				}(
-				grad, buf, y, data, length(data)
+				grad, buf, y, data
 				)
 		reset!(vrg)
 		return vrg
 	end
 end
-nfunc(vrg::LinearVRG) = vrg.n
-
 Base.getindex(vrg::LinearVRG, i::Int) = vrg.data[i]*vrg.y[i]
 
 sgrad(vrg, x, i) = vrg.grad(dot(vrg.data[i],x),i)
@@ -165,7 +153,7 @@ function add_grad!(res, vrg::LinearVRG, x, i, step)
 end
 
 function add_approx!(res, vrg::LinearVRG, step)
-	res .+= vrg.ysum./vrg.n.*step
+	res .+= vrg.ysum./nfunc(vrg).*step
 end
 
 function add_vrgrad!(res, vrg::LinearVRG, x, i, step_innv, step_approx)
@@ -194,22 +182,19 @@ end
 
 ################################################################################
 struct UniformVRG{
-		T<:Real, Vg<:AbstractArray{T}, GF
-		} <: AbstractVRGradient
+		T<:Real, Vg<:AbstractArray{T}, GF, N
+		} <: AbstractVRGradient{N}
 	grad!::GF
 	ymean::Vg
 	xmem::Vg
 	buf::Vg
-	n::Int
 	function UniformVRG(grad, buf, n)
-		vrg = new{eltype(buf), typeof(buf), typeof(grad)}(
-			grad, buf, similar(buf), similar(buf), n)
+		vrg = new{eltype(buf), typeof(buf), typeof(grad), n}(
+			grad, buf, similar(buf), similar(buf))
 		reset!(vrg)
 		return vrg
 	end
 end
-
-nfunc(vrg::UniformVRG) = vrg.n
 
 Base.getindex(vrg::UniformVRG, i::Int) =
 	(vrg.grad!(vrg.buf,vrg.xmem,i); vrg.buf)
@@ -222,11 +207,11 @@ end
 function store_grad!(vrg::UniformVRG, x)
 	vrg.xmem .= x
 	vrg.grad!(vrg.ymean, x, 1)
-	for i = 2:vrg.n
+	for i = 2:nfunc(vrg)
 		vrg.grad!(vrg.buf, x, i)
 		vrg.ymean .+= vrg.buf
 	end
-	vrg.ymean ./= vrg.n
+	vrg.ymean ./= nfunc(vrg)
 end
 
 function add_grad!(res, vrg::UniformVRG, x, i, step)
