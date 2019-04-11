@@ -23,8 +23,8 @@ function iterate!(alg::VRAlgorithm, nstages, logger = NoLog(), iterperlog = 1)
 	
 	iter = 0
 	for stage = 1:nstages
-		stagelen = stageupdate!(alg, stage)
-		stagelog!(logger, alg, stage)	
+		stagelen = stageupdate!(alg, iter, stage)
+		stagelog!(logger, alg, iter, stage)
 		
 		for _ = 1:stagelen
 			iter += 1

@@ -15,7 +15,9 @@ finalize!(l::AbstractLogger) = nothing
 
 stagelog!(l::AbstractLogger) = nothing
 stagelog!(l::AbstractLogger, stage) = stagelog!(l::AbstractLogger)
-stagelog!(l::AbstractLogger, alg, stage) = stagelog!(l::AbstractLogger, stage)
+stagelog!(l::AbstractLogger, iter, stage) = stagelog!(l::AbstractLogger, stage)
+stagelog!(l::AbstractLogger, alg, iter, stage) =
+	stagelog!(l::AbstractLogger, iter, stage)
 
 log!(l::AbstractLogger) = nothing
 log!(l::AbstractLogger, iter) = log!(l::AbstractLogger)
@@ -30,7 +32,7 @@ Loggers = NTuple{N,AbstractLogger} where N
 initialize!(tl::Loggers) = unrolled_foreach(initialize!, tl)
 finalize!(tl::Loggers) = unrolled_foreach(finalize!, tl)
 
-stagelog!(tl::Loggers, alg, stage) =
+stagelog!(tl::Loggers, alg, iter, stage) =
 	unrolled_foreach(l -> stagelog!(l, alg, stage), tl)
 
 log!(tl::Loggers, alg, iter, stage) =

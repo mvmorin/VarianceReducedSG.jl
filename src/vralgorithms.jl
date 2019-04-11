@@ -43,8 +43,11 @@ update!(alg::VRAlgorithm) = nothing
 update!(alg::VRAlgorithm, iter) = update!(alg::VRAlgorithm)
 update!(alg::VRAlgorithm, iter, stage) = update!(alg::VRAlgorithm, iter)
 
-stageupdate!(alg::VRAlgorithm) = nothing
+stageupdate!(alg::VRAlgorithm) =
+	error("stageupdate! need to return the stage length")
 stageupdate!(alg::VRAlgorithm, stage) = stageupdate!(alg::VRAlgorithm)
+stageupdate!(alg::VRAlgorithm, iter, stage) =
+	stageupdate!(alg::VRAlgorithm, stage)
 
 initialize!(alg::VRAlgorithm) = nothing
 
@@ -80,7 +83,7 @@ function update!(alg::SAGA, iter, stage)
 	ss_innv = alg.stepsize/(nfunc(alg.vrg)*p)
 	addandstore_vrgrad!(alg.x, alg.vrg, i, -ss_innv, -alg.stepsize)
 end
-stageupdate!(alg::SAGA, stage) = 1
+stageupdate!(alg::SAGA) = 1
 primiterates(alg::SAGA) = alg.x
 dualiterates(alg::SAGA) = alg.vrg
 
@@ -114,7 +117,7 @@ function update!(alg::SVRG, iter, stage)
 	ss_innv = alg.stepsize/(nfunc(alg.vrg)*p)
 	add_vrgrad!(alg.x, alg.vrg, i, -ss_innv, -alg.stepsize)
 end
-function stageupdate!(alg::SVRG, stage)
+function stageupdate!(alg::SVRG)
 	store_grad!(alg.vrg, alg.x)
 	return alg.stagelen
 end
