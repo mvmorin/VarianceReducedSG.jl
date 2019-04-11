@@ -140,11 +140,6 @@ function SAGA_VRGradient_Importance()
 end
 
 
-@testset "SAGA - Least Squares" begin
-	SAGA_VRGradient()
-	SAGA_LinearVRG()
-	SAGA_VRGradient_Importance()
-end
 
 
 ################################################################################
@@ -244,10 +239,115 @@ function SVRG_UniformVRG_Importance()
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
 
+
+################################################################################
+# Loopless SVRG
+################################################################################
+function LSVRG_VRGradient()
+	N = 100
+	n = 1000
+	mt = MersenneTwister(123)
+
+	data, b, x0, x_star = setup_ls(N,n,mt)
+
+	# Gradients of square cost
+	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
+
+	# VR gradient
+	vrg = VRGradient(f, zeros(N), n)
+
+	# Create Loggers
+	fprog(x,y) = norm(x - x_star)
+
+	loggers = (
+		ShowFuncVal(fprog, "|| x - x^*||"),
+		ShowTime(),
+		ShowNewline("")
+		)
+
+	# Setup iterations counts
+	q = 10/n # Expected update frequency
+	nstages = 1000
+	niterations = nstages/q # Expected number of iterations
+	iterperlog = Int(floor(niterations/10))
+
+	# Create Algorithm and solve
+	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+
+	# Solve again for smaller expected update frequency
+	q = .1/n
+	nstages = 100
+	niterations = nstages/q
+	iterperlog = Int(floor(niterations/10))
+
+	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+end
+
+function LSVRG_UniformVRG_Importance()
+	N = 100
+	n = 1000
+	mt = MersenneTwister(123)
+
+	data, b, x0, x_star = setup_ls(N,n,mt)
+
+	# Gradients of square cost
+	f(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
+
+	# VR gradient
+	vrg = UniformVRG(f, zeros(N), n)
+
+	# Create Loggers
+	fprog(x,y) = norm(x - x_star)
+
+	loggers = (
+		ShowFuncVal(fprog, "|| x - x^*||"),
+		ShowTime(),
+		ShowNewline()
+		)
+
+	# Randomize a sample weighting
+	w = .1 .+ rand(mt,n)
+
+	# Setup iterations counts
+	q = 10/n # Expected update frequency
+	nstages = 1000
+	niterations = nstages/q # Expected number of iterations
+	iterperlog = Int(floor(niterations/10))
+
+	# Create Algorithm and solve
+	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt, w)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+
+	# Solve again for smaller expected update frequency
+	q = .1/n
+	nstages = 100
+	niterations = nstages/q
+	iterperlog = Int(floor(niterations/10))
+
+	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt, w)
+	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+end
+
+################################################################################
+# Testsets
+################################################################################
+@testset "SAGA - Least Squares" begin
+	SAGA_VRGradient()
+	SAGA_LinearVRG()
+	SAGA_VRGradient_Importance()
+end
+
 @testset "SVRG - Least Squares" begin
 	SVRG_VRGradient()
 	SVRG_UniformVRG()
 	SVRG_UniformVRG_Importance()
+end
+
+@testset "Loopless SVRG - Least Squares" begin
+	LSVRG_VRGradient()
+	LSVRG_UniformVRG_Importance()
 end
 
 end
