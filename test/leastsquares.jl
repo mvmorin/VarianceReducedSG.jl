@@ -262,14 +262,13 @@ function LSVRG_VRGradient()
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
 		ShowTime(),
-		ShowNewLine("")
+		ShowNewLine("LSVRG - VRGradient")
 		)
 
 	# Setup iterations counts
 	q = 10/n # Expected update frequency
-	nstages = 1000
-	niterations = nstages/q # Expected number of iterations
-	iterperlog = Int(floor(niterations/10))
+	nstages = 1000/q
+	iterperlog = Int(floor(nstages/10))
 
 	# Create Algorithm and solve
 	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt)
@@ -277,9 +276,8 @@ function LSVRG_VRGradient()
 
 	# Solve again for smaller expected update frequency
 	q = .1/n
-	nstages = 100
-	niterations = nstages/q
-	iterperlog = Int(floor(niterations/10))
+	nstages = 100/q
+	iterperlog = Int(floor(nstages/10))
 
 	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt)
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
@@ -304,7 +302,7 @@ function LSVRG_UniformVRG_Importance()
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
 		ShowTime(),
-		ShowNewLine()
+		ShowNewLine("LSVRG - UnifromVRG - Importance")
 		)
 
 	# Randomize a sample weighting
@@ -312,9 +310,8 @@ function LSVRG_UniformVRG_Importance()
 
 	# Setup iterations counts
 	q = 10/n # Expected update frequency
-	nstages = 1000
-	niterations = nstages/q # Expected number of iterations
-	iterperlog = Int(floor(niterations/10))
+	nstages = 1000/q
+	iterperlog = Int(floor(nstages/10))
 
 	# Create Algorithm and solve
 	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt, w)
@@ -322,9 +319,8 @@ function LSVRG_UniformVRG_Importance()
 
 	# Solve again for smaller expected update frequency
 	q = .1/n
-	nstages = 100
-	niterations = nstages/q
-	iterperlog = Int(floor(niterations/10))
+	nstages = 100/q
+	iterperlog = Int(floor(nstages/10))
 
 	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt, w)
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)

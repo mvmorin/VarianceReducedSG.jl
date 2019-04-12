@@ -129,30 +129,26 @@ dualiterates(alg::SVRG) = alg.vrg
 
 ##############################
 # Loopless SVRG
-struct LSVRG{T,I,X,VRG,S<:IndexSampling,SS,RNG} <:VRAlgorithm
+struct LSVRG{T,I,X,VRG,S<:IndexSampling,Q,RNG} <:VRAlgorithm
 	stepsize::T
 	x::I
 	x_prev::X
 	vrg::VRG
 	x0::X
 	sampling::S
-	stagesampling::SS
+	q::Q
 	rng::RNG
 end
 # Constructors
 function LSVRG(stepsize, x, vrg, x0, q, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
-	LSVRG(stepsize, x, vrg, x0, sampling, q ,rng)
+	x_prev = similar(x)
+	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, q ,rng)
 end
 function LSVRG(stepsize, x, vrg, x0, q, rng, w)
 	sampling = WeightedSampling(rng, w)
-	LSVRG(stepsize, x, vrg, x0, sampling, q ,rng)
-end
-function LSVRG(stepsize, x, vrg, x0, sampling::IndexSampling, q, rng)
-	# Stage lengths are geometrically distributed
-	stagesampling = Geometric(q)
 	x_prev = similar(x)
-	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, stagesampling, rng)
+	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, q ,rng)
 end
 # Interface
 function initialize!(alg::LSVRG)
@@ -164,12 +160,9 @@ function update!(alg::LSVRG, iter, stage)
 	ss_innv = alg.stepsize/(nfunc(alg.vrg)*p)
 	alg.x_prev .= alg.x
 	add_vrgrad!(alg.x, alg.vrg, i, -ss_innv, -alg.stepsize)
+
+	rand(alg.rng) < alg.q && store_grad!(alg.vrg, alg.x_prev)
 end
-function stageupdate!(alg::LSVRG)
-	# Note: Update from previous iterate, otherwise it is an unbounded S2GD
-	store_grad!(alg.vrg, alg.x_prev)
-	stagelen = rand(alg.rng, alg.stagesampling) + 1
-	return stagelen
-end
+stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x
 dualiterates(alg::LSVRG) = alg.vrg

@@ -3,7 +3,6 @@ module VarianceReducedSG
 using LinearAlgebra
 using Unrolled
 using Printf
-using Distributions
 
 include("gradientstorage.jl")
 include("vralgorithms.jl")
