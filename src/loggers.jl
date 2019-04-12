@@ -1,4 +1,9 @@
-export ShowIterations, ShowNewline, ShowTime, ShowFuncVal, NoLog
+export ShowIterations,
+	ShowNewLine,
+	ShowTime,
+	ShowFuncVal,
+	NoLog,
+	StoreFuncVal
 
 export initialize!,
 	finalize!,
@@ -50,11 +55,11 @@ log!(l::ShowIterations, iter, stage) =
 
 
 ################################################################################
-struct ShowNewline{S} <: AbstractLogger
+struct ShowNewLine{S} <: AbstractLogger
 	s::S
 end
-ShowNewline() = ShowNewline("")
-log!(l::ShowNewline) = println(l.s)
+ShowNewLine() = ShowNewLine("")
+log!(l::ShowNewLine) = println(l.s)
 
 
 ################################################################################
@@ -78,3 +83,38 @@ end
 log!(l::ShowFuncVal, alg, iter, stage) = 
 	@printf("%s: %g, ", l.label, l.f(primiterates(alg), dualiterates(alg)))
 
+
+################################################################################
+struct StoreFuncVal{F,V,VI<:AbstractArray{Int}} <: AbstractLogger
+	f::F
+	fvals::V
+	iterations::VI
+	stages::VI
+	idx::Vector{Int}
+	StoreFuncVal(f::F, fv::V, i::VI, s::VI) where {F,V,VI} =
+		new{F,V,VI}(f,fv,i,s,[1])
+end
+initialize!(l::StoreFuncVal) = l.idx[1] = 1
+function log!(l::StoreFuncVal, alg, iter, stage)
+	i = l.idx[1]
+
+	i > length(l.fvals) && return
+
+	l.fvals[i] = l.f(primiterates(alg), dualiterates(alg))
+	l.iterations[i] = iter
+	l.stages[i] = stage
+	l.idx[1] += 1
+end
+function finalize!(l::StoreFuncVal)
+	# Zero out unused space
+	last = l.idx[1]
+
+	fval = zero(eltype(l.fvals))
+	iter = 0
+	stage = 0
+	for i = last:length(l.fvals)
+		l.fvals[i] = fval
+		l.iterations[i] = iter
+		l.stages[i] = stage
+	end
+end

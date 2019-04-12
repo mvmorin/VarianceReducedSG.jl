@@ -64,7 +64,7 @@ function SAGA_VRGradient()
 		ShowTime(),
 		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewline("EOL")
+		ShowNewLine("EOL")
 		)
 
 	# Solve
@@ -95,7 +95,7 @@ function SAGA_LinearVRG()
 	loggers = (
 		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewline("EOL")
+		ShowNewLine("EOL")
 		)
 
 	# Solve
@@ -130,7 +130,7 @@ function SAGA_VRGradient_Importance()
 		ShowTime(),
 		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewline("EOL")
+		ShowNewLine("EOL")
 		)
 
 	# Solve
@@ -166,7 +166,7 @@ function SVRG_VRGradient()
 
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewline("EOL")
+		ShowNewLine("EOL")
 		)
 
 	# Solve
@@ -197,7 +197,7 @@ function SVRG_UniformVRG()
 	loggers = (
 		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewline("EOL")
+		ShowNewLine("EOL")
 		)
 
 	# Solve
@@ -230,7 +230,7 @@ function SVRG_UniformVRG_Importance()
 
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewline("EOL")
+		ShowNewLine("EOL")
 		)
 
 	# Solve
@@ -262,7 +262,7 @@ function LSVRG_VRGradient()
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
 		ShowTime(),
-		ShowNewline("")
+		ShowNewLine("")
 		)
 
 	# Setup iterations counts
@@ -304,7 +304,7 @@ function LSVRG_UniformVRG_Importance()
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
 		ShowTime(),
-		ShowNewline()
+		ShowNewLine()
 		)
 
 	# Randomize a sample weighting
