@@ -1,7 +1,6 @@
 export SAGA, SVRG, LSVRG
 
 export primiterates, dualiterates
-export UniformSampling, nfunc
 
 ################################################################################
 # Index Samplings
@@ -29,7 +28,7 @@ struct WeightedSampling{RNG, CP} <: IndexSampling
 end
 function (s::WeightedSampling)()
 	u = rand(s.rng)
-	i = findfirst(c -> c >= u, s.cp) # There are probably better ways to do this
+	i = searchsortedfirst(s.cp, u)
 	return i, s.p[i]
 end
 
@@ -66,12 +65,14 @@ struct SAGA{T,X,VRG,S<:IndexSampling} <: VRAlgorithm
 	sampling::S
 end
 # Constructors
-function SAGA(stepsize, x, vrg, x0, rng)
+function SAGA(stepsize, vrg, x0, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
+	x = similar(x0)
 	SAGA(stepsize, x, x0, vrg, sampling)
 end
-function SAGA(stepsize, x, vrg, x0, rng, w)
+function SAGA(stepsize, vrg, x0, rng, w)
 	sampling = WeightedSampling(rng, w)
+	x = similar(x0)
 	SAGA(stepsize, x, x0, vrg, sampling)
 end
 # Interface
@@ -100,12 +101,14 @@ struct SVRG{T,I,X,VRG,S<:IndexSampling} <: VRAlgorithm
 	sampling::S
 end
 # Constructors
-function SVRG(stepsize, stagelen, x, vrg, x0, rng)
+function SVRG(stepsize, stagelen, vrg, x0, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
+	x = similar(x0)
 	SVRG(stepsize,stagelen,x,vrg,x0,sampling)
 end
-function SVRG(stepsize, stagelen, x, vrg, x0, rng, w)
+function SVRG(stepsize, stagelen, vrg, x0, rng, w)
 	sampling = WeightedSampling(rng, w)
+	x = similar(x0)
 	SVRG(stepsize,stagelen,x,vrg,x0,sampling)
 end
 # Interface
@@ -140,14 +143,16 @@ struct LSVRG{T,I,X,VRG,S<:IndexSampling,Q,RNG} <:VRAlgorithm
 	rng::RNG
 end
 # Constructors
-function LSVRG(stepsize, x, vrg, x0, q, rng)
+function LSVRG(stepsize, vrg, x0, q, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
-	x_prev = similar(x)
+	x = similar(x0)
+	x_prev = similar(x0)
 	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, q ,rng)
 end
-function LSVRG(stepsize, x, vrg, x0, q, rng, w)
+function LSVRG(stepsize, vrg, x0, q, rng, w)
 	sampling = WeightedSampling(rng, w)
-	x_prev = similar(x)
+	x = similar(x0)
+	x_prev = similar(x0)
 	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, q ,rng)
 end
 # Interface

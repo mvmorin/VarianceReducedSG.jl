@@ -55,16 +55,15 @@ function SAGA_VRGradient()
 	vrg = VRGradient(f, zeros(N), n)
 	
 	# Create Algorithm
-	alg = SAGA(1/3, zeros(N), vrg, x0, mt)
+	alg = SAGA(1/3, vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
 
 	loggers = (
 		ShowTime(),
-		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewLine("EOL")
+		ShowNewLine("SAGA - VRGradient")
 		)
 
 	# Solve
@@ -87,7 +86,7 @@ function SAGA_LinearVRG()
 	vrg = LinearVRG(f, data, zeros(N))
 	
 	# Create Algorithm
-	alg = SAGA(1/3, zeros(N), vrg, x0, mt)
+	alg = SAGA(1/3, vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -95,7 +94,7 @@ function SAGA_LinearVRG()
 	loggers = (
 		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewLine("EOL")
+		ShowNewLine("SAGA - LinearVRG")
 		)
 
 	# Solve
@@ -121,16 +120,14 @@ function SAGA_VRGradient_Importance()
 	w = .1 .+ rand(mt,n)
 
 	# Create Algorithm
-	alg = SAGA(1/3, zeros(N), vrg, x0, mt, w)
+	alg = SAGA(1/3, vrg, x0, mt, w)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
 
 	loggers = (
-		ShowTime(),
-		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewLine("EOL")
+		ShowNewLine("SAGA - VRGradient - Importance")
 		)
 
 	# Solve
@@ -159,14 +156,14 @@ function SVRG_VRGradient()
 	vrg = VRGradient(f, zeros(N), n)
 	
 	# Create Algorithm
-	alg = SVRG(1/3, Int(ceil(n/2)), zeros(N), vrg, x0, mt)
+	alg = SVRG(1/3, Int(ceil(n/2)), vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
 
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewLine("EOL")
+		ShowNewLine("SVRG")
 		)
 
 	# Solve
@@ -189,7 +186,7 @@ function SVRG_UniformVRG()
 	vrg = UniformVRG(f, zeros(N), n)
 	
 	# Create Algorithm
-	alg = SVRG(1/3, Int(ceil(n/2)), zeros(N), vrg, x0, mt)
+	alg = SVRG(1/3, Int(ceil(n/2)), vrg, x0, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -197,7 +194,7 @@ function SVRG_UniformVRG()
 	loggers = (
 		ShowIterations(),
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewLine("EOL")
+		ShowNewLine("SVRG - UniformVRG")
 		)
 
 	# Solve
@@ -223,14 +220,14 @@ function SVRG_UniformVRG_Importance()
 	w = .1 .+ rand(mt,n)
 	
 	# Create Algorithm
-	alg = SVRG(1/3, Int(ceil(n/2)), zeros(N), vrg, x0, mt, w)
+	alg = SVRG(1/3, Int(ceil(n/2)), vrg, x0, mt, w)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
 
 	loggers = (
 		ShowFuncVal(fprog, "|| x - x^*||"),
-		ShowNewLine("EOL")
+		ShowNewLine("SVRG - UniformVRG - Importance")
 		)
 
 	# Solve
@@ -271,7 +268,7 @@ function LSVRG_VRGradient()
 	iterperlog = Int(floor(nstages/10))
 
 	# Create Algorithm and solve
-	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt)
+	alg = LSVRG(1/3, vrg, x0, q, mt)
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 
 	# Solve again for smaller expected update frequency
@@ -279,7 +276,7 @@ function LSVRG_VRGradient()
 	nstages = 100/q
 	iterperlog = Int(floor(nstages/10))
 
-	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt)
+	alg = LSVRG(1/3, vrg, x0, q, mt)
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
 
@@ -314,7 +311,7 @@ function LSVRG_UniformVRG_Importance()
 	iterperlog = Int(floor(nstages/10))
 
 	# Create Algorithm and solve
-	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt, w)
+	alg = LSVRG(1/3, vrg, x0, q, mt, w)
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 
 	# Solve again for smaller expected update frequency
@@ -322,7 +319,7 @@ function LSVRG_UniformVRG_Importance()
 	nstages = 100/q
 	iterperlog = Int(floor(nstages/10))
 
-	alg = LSVRG(1/3, zeros(N), vrg, x0, q, mt, w)
+	alg = LSVRG(1/3, vrg, x0, q, mt, w)
 	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
 end
 
