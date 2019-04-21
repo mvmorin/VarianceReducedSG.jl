@@ -3,6 +3,7 @@ module GradientStorageTests
 using Test
 using VarianceReducedSG
 using LinearAlgebra
+using SparseArrays
 using Random
 Random.seed!(0)
 
@@ -290,15 +291,15 @@ function correct_innovation(g, n, dim, f)
 	
 	res = zeros(dim)
 	add_vrgrad!(res, g, x, rand(1:n), randn(), 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-12)
+	@test isapprox(res, zeros(dim), atol=1e-10)
 
 	res = zeros(dim)
 	addandstore_vrgrad!(res, g, x, rand(1:n), randn(), 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-12)
+	@test isapprox(res, zeros(dim), atol=1e-10)
 	
 	res = zeros(dim)
 	add_vrgrad!(res, g, x, rand(1:n), randn(), 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-12)
+	@test isapprox(res, zeros(dim), atol=1e-10)
 
 
 	x = randn(dim)
@@ -320,7 +321,7 @@ function correct_innovation(g, n, dim, f)
 	step = randn()
 	res = zeros(dim)
 	add_vrgrad!(res, g, x, i, step, 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-12)
+	@test isapprox(res, zeros(dim), atol=1e-10)
 
 
 	x = randn(dim)
@@ -403,12 +404,44 @@ function input_overwriting(g1, g2, n, dim)
 	@test isapprox(res1, res2)
 end
 
-function equivalent_uniformstore(g1, g2, n, dim)
+function equivalent(g1, g2, n, dim; uniform_store = false)
 	x = randn(dim)
-	
 	store_grad!(g1, x)
 	store_grad!(g2, x)
 	@test allsame(g1,g2)
+
+	if !uniform_store
+		x = randn(dim)
+		ids = 1:3:n
+		store_grad!(g1, x, ids)
+		store_grad!(g2, x, ids)
+		@test allsame(g1,g2)
+
+
+		x = randn(dim)
+		i = rand(1:n)
+		step = randn()
+
+		res1 = randn(dim)
+		res2 = copy(res1)
+		addandstore_grad!(res1, g1, x, i, step)
+		addandstore_grad!(res2, g2, x, i, step)
+		@test isapprox(res1, res2)
+
+
+		x = randn(dim)
+		i = rand(1:n)
+		step_innv = randn()
+		step_approx = randn()
+
+		res1 = randn(dim)
+		res2 = copy(res1)
+		x_ctrl = copy(x)
+		addandstore_vrgrad!(res1, g1, x, i, step_innv, step_approx)
+		addandstore_vrgrad!(res2, g2, x, i, step_innv, step_approx)
+		@test isapprox(res1, res2)
+		@test isapprox(x, x_ctrl)
+	end
 
 	
 	x = randn(dim)
@@ -444,6 +477,49 @@ function equivalent_uniformstore(g1, g2, n, dim)
 	@test isapprox(x, x_ctrl)
 end
 
+function allocation(g,n,dim; uniform_store=false)
+	nfunc(g) #run once to make sure it is compiled
+	@test 0 == @allocated nfunc(g)
+	#g[1]
+	#@test 0 == @allocated g[1]
+	reset!(g)
+	@test 0 == @allocated reset!(g)
+
+	x = randn(dim)
+	res = randn(dim)
+	ids = 1:3:n
+	i = rand(1:n)
+	step_innv = randn()
+	step_approx = randn()
+
+	if uniform_store
+		store_grad!(g,x)
+		@test 0 == @allocated store_grad!(g,x)
+	else
+		store_grad!(g,x,ids)
+		@test 0 == @allocated store_grad!(g,x,ids)
+
+		addandstore_grad!(res, g, x, i , step_innv)
+		@test 0 == @allocated addandstore_grad!(res, g, x, i , step_innv)
+
+		addandstore_vrgrad!(res, g, x, i , step_innv, step_approx)
+		@test 0 == @allocated addandstore_vrgrad!(
+								res, g, x, i , step_innv, step_approx)
+	end
+
+
+	add_grad!(res, g, x, i, step_innv)
+	@test 0 == @allocated add_grad!(res, g, x, i, step_innv)
+
+	add_approx!(res, g, step_approx)
+	@test 0 == @allocated add_approx!(res, g, step_approx)
+
+	add_vrgrad!(res, g, x, i, step_innv, step_approx)
+	@test 0 == @allocated add_vrgrad!(res, g, x, i, step_innv, step_approx)
+end
+
+
+
 @testset "VRGradient" begin
 	isq(y,x,i) = (y .= i.*x.^2)
 	
@@ -456,12 +532,17 @@ end
 		@test nfunc(g2) == n
 
 		resetstorereset(g1, g2, n, dim)
+
 		nonmodifying_calls(g1, g2, n, dim)
 		modifying_calls(g1, g2, n, dim)
+
 		correct_grad(g1, n, dim, isq)
 		correct_approximation(g1, n, dim, isq)
 		correct_innovation(g1, n, dim, isq)
+
 		input_overwriting(g1, g2, n, dim)
+
+		allocation(g1, n, dim)
 	end
 end
 
@@ -474,26 +555,65 @@ end
 		for d in data
 			d[rand(1:dim, dim - nzero)] .= 0.0
 		end
-		
+
 		isq(y,x,i) = (y .= data[i]*sq(dot(data[i],x), i))
 
 		g1 = LinearVRG(sq, data, zeros(dim))
 		g2 = LinearVRG(sq, data, zeros(dim))
-		
+
 		@test allsame(g1,g2)
 		@test nfunc(g1) == n
 		@test nfunc(g2) == n
 
 		resetstorereset(g1, g2, n, dim)
+
 		nonmodifying_calls(g1, g2, n, dim)
 		modifying_calls(g1, g2, n, dim)
+
 		correct_grad(g1, n, dim, isq)
 		correct_approximation(g1, n, dim, isq)
 		correct_innovation(g1, n, dim, isq)
+
 		input_overwriting(g1, g2, n, dim)
-		
+
 		g_ctrl = VRGradient(isq, zeros(dim), n)
-		equivalent_uniformstore(g1, g_ctrl, n, dim)
+		equivalent(g1, g_ctrl, n, dim)
+
+		allocation(g1, n, dim)
+	end
+end
+
+@testset "LinearVRG - Sparse Data" begin
+	sq(x, i) = i*x^2
+
+	for dim in [1,101], n in [1,313]
+		spdata = [(d = sprandn(dim, 0.5); d[1] = randn(); d) for _ = 1:n]
+		data = [ Array(spd) for spd in spdata]
+
+		isq(y,x,i) = (y .= data[i]*sq(dot(data[i],x), i))
+
+		g1 = LinearVRG(sq, spdata, zeros(dim))
+		g2 = LinearVRG(sq, spdata, zeros(dim))
+
+		@test allsame(g1,g2)
+		@test nfunc(g1) == n
+		@test nfunc(g2) == n
+
+		resetstorereset(g1, g2, n, dim)
+
+		nonmodifying_calls(g1, g2, n, dim)
+		modifying_calls(g1, g2, n, dim)
+
+		correct_grad(g1, n, dim, isq)
+		correct_approximation(g1, n, dim, isq)
+		correct_innovation(g1, n, dim, isq)
+
+		input_overwriting(g1, g2, n, dim)
+
+		gd = LinearVRG(sq, data, zeros(dim))
+		equivalent(g1, gd, n, dim)
+
+		allocation(g1, n, dim)
 	end
 end
 
@@ -521,8 +641,9 @@ end
 		nonmodifying_calls(g1, g2, n, dim)
 		
 		g_ctrl = VRGradient(isq, zeros(dim), n)
-		equivalent_uniformstore(g1, g_ctrl, n, dim)
+		equivalent(g1, g_ctrl, n, dim, uniform_store = true)
 
+		allocation(g1, n, dim, uniform_store = true)
 
 		x = randn(dim)
 		i = rand(1:n)

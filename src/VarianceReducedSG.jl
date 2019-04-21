@@ -1,6 +1,7 @@
 module VarianceReducedSG
 
 using LinearAlgebra
+using SparseArrays
 using Unrolled
 using Printf
 
