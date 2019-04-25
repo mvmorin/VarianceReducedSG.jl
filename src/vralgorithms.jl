@@ -88,7 +88,8 @@ function update!(alg::SAGA, iter, stage)
 	(i,p) = alg.sampling()
 	innv_weight = 1/(nfunc(alg.vrg)*p)
 	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
-	alg.x .-= alg.stepsize.*alg.x_tmp
+	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
 stageupdate!(alg::SAGA) = 1
 primiterates(alg::SAGA) = alg.x
@@ -129,7 +130,8 @@ function update!(alg::SVRG, iter, stage)
 	(i,p) = alg.sampling()
 	innv_weight = 1/(nfunc(alg.vrg)*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
-	alg.x .-= alg.stepsize.*alg.x_tmp
+	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
 function stageupdate!(alg::SVRG)
 	grad_store!(alg.vrg, alg.x)
@@ -176,7 +178,8 @@ function update!(alg::LSVRG, iter, stage)
 	innv_weight = 1/(nfunc(alg.vrg)*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
 	rand(alg.rng) < alg.q && grad_store!(alg.vrg, alg.x)
-	alg.x .-= alg.stepsize.*alg.x_tmp
+	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
 stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x
