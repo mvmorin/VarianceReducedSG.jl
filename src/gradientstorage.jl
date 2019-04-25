@@ -207,6 +207,6 @@ end
 
 invalid() = error("UniformVRG only support uniform store operations.")
 
-store_grad!(vrg::UniformVRG, x, ids) = invalid()
+grad_store!(vrg::UniformVRG, x, ids) = invalid()
 grad_store!(res, vrg::UniformVRG, x, i) = invalid()
 vrgrad_store!(res, vrg::UniformVRG, x, i, innv_weight) = invalid()
