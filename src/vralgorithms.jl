@@ -57,26 +57,27 @@ dualiterates(alg::VRAlgorithm) = nothing
 
 ##############################
 # SAGA
-struct SAGA{T,X,VRG,S<:IndexSampling} <: VRAlgorithm
-	stepsize::T
+struct SAGA{X,VRG,PF,T,S} <: VRAlgorithm
 	x::X
 	x_tmp::X
 	x0::X
 	vrg::VRG
+	prox_f::PF
+	stepsize::T
 	sampling::S
+
+	function SAGA(vrg, prox_f, x0, stepsize, sampling)
+		x = similar(x0)
+		x_tmp = similar(x0)
+		X,VRG,PF,T,S = typeof.((x,vrg,prox_f,stepsize,sampling))
+		new{X,VRG,PF,T,S}(x,x_tmp,x0,vrg,prox_f,stepsize,sampling)
+	end
 end
 # Constructors
-function SAGA(stepsize, vrg, x0, rng)
-	sampling = UniformSampling(rng, nfunc(vrg))
-	x = similar(x0)
-	x_tmp = similar(x0)
-	SAGA(stepsize, x, x_tmp, x0, vrg, sampling)
-end
-function SAGA(stepsize, vrg, x0, rng, w)
-	sampling = WeightedSampling(rng, w)
-	x = similar(x0)
-	x_tmp = similar(x0)
-	SAGA(stepsize, x, x_tmp, x0, vrg, sampling)
+function SAGA(vrg, x0, stepsize, rng; weights=nothing, prox_f=IndFree())
+	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+										WeightedSampling(rng, weights)
+	SAGA(vrg, prox_f, x0, stepsize, sampling)
 end
 # Interface
 function initialize!(alg::SAGA)
@@ -96,27 +97,28 @@ dualiterates(alg::SAGA) = alg.vrg
 
 ##############################
 # SVRG
-struct SVRG{T,I,X,VRG,S<:IndexSampling} <: VRAlgorithm
-	stepsize::T
-	stagelen::I
+struct SVRG{X,VRG,PF,T,I,S} <: VRAlgorithm
 	x::X
 	x_tmp::X
-	vrg::VRG
 	x0::X
+	vrg::VRG
+	prox_f::PF
+	stepsize::T
+	stagelen::I
 	sampling::S
+
+	function SVRG(vrg,prox_f,x0,stepsize,stagelen,sampling)
+		x = similar(x0)
+		x_tmp = similar(x0)
+		X,VRG,PF,T,I,S = typeof.((x,vrg,prox_f,stepsize,stagelen,sampling))
+		new{X,VRG,PF,T,I,S}(x,x_tmp,x0,vrg,prox_f,stepsize,stagelen,sampling)
+	end
 end
 # Constructors
-function SVRG(stepsize, stagelen, vrg, x0, rng)
-	sampling = UniformSampling(rng, nfunc(vrg))
-	x = similar(x0)
-	x_tmp = similar(x0)
-	SVRG(stepsize,stagelen,x,x_tmp,vrg,x0,sampling)
-end
-function SVRG(stepsize, stagelen, vrg, x0, rng, w)
-	sampling = WeightedSampling(rng, w)
-	x = similar(x0)
-	x_tmp = similar(x0)
-	SVRG(stepsize,stagelen,x,x_tmp,vrg,x0,sampling)
+function SVRG(vrg, x0, stepsize, stagelen, rng;weights=nothing,prox_f=IndFree())
+	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+										WeightedSampling(rng, weights)
+	SVRG(vrg, prox_f, x0, stepsize, stagelen, sampling)
 end
 # Interface
 function initialize!(alg::SVRG)
@@ -140,28 +142,29 @@ dualiterates(alg::SVRG) = alg.vrg
 
 ##############################
 # Loopless SVRG
-struct LSVRG{T,X,VRG,S<:IndexSampling,Q,RNG} <:VRAlgorithm
-	stepsize::T
+struct LSVRG{X,VRG,PF,T,Q,RNG,S} <:VRAlgorithm
 	x::X
 	x_tmp::X
-	vrg::VRG
 	x0::X
-	sampling::S
+	vrg::VRG
+	prox_f::PF
+	stepsize::T
 	q::Q
 	rng::RNG
+	sampling::S
+
+	function LSVRG(vrg,prox_f,x0,stepsize,q,rng,sampling)
+		x = similar(x0)
+		x_tmp = similar(x0)
+		X,VRG,PF,T,Q,RNG,S = typeof.((x,vrg,prox_f,stepsize,q,rng,sampling))
+		new{X,VRG,PF,T,Q,RNG,S}(x,x_tmp,x0,vrg,prox_f,stepsize,q,rng,sampling)
+	end
 end
 # Constructors
-function LSVRG(stepsize, vrg, x0, q, rng)
-	sampling = UniformSampling(rng, nfunc(vrg))
-	x = similar(x0)
-	x_tmp = similar(x0)
-	LSVRG(stepsize, x, x_tmp, vrg, x0, sampling, q ,rng)
-end
-function LSVRG(stepsize, vrg, x0, q, rng, w)
-	sampling = WeightedSampling(rng, w)
-	x = similar(x0)
-	x_tmp = similar(x0)
-	LSVRG(stepsize, x, x_tmp, vrg, x0, sampling, q ,rng)
+function LSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
+	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+										WeightedSampling(rng, weights)
+	LSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
 end
 # Interface
 function initialize!(alg::LSVRG)
