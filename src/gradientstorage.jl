@@ -9,37 +9,21 @@ nfunc(vrg::AbstractVRGradient{N}) where N = N
 
 Base.getindex(vrg::AbstractVRGradient, i::Int) = not_implemented()
 reset!(vrg::AbstractVRGradient) = not_implemented()
-store_grad!(vrg::AbstractVRGradient, x, ids) = not_implemented()
-add_grad!(res, vrg::AbstractVRGradient, x, i, step) = not_implemented()
-add_approx!(res, vrg::AbstractVRGradient, step) = not_implemented()
-add_vrgrad!(res, vrg::AbstractVRGradient, x, i, step_innv, step_approx) =
-	not_implemented()
-addandstore_grad!(res, vrg::AbstractVRGradient, x, i, step) = not_implemented()
-addandstore_vrgrad!(
-		res, vrg::AbstractVRGradient, x, i, step_innv, step_approx) =
-	not_implemented()
+
+grad!(res, vrg::AbstractVRGradient, x, i) = not_implemented()
+grad_store!(vrg::AbstractVRGradient, x, ids) = not_implemented()
+grad_store!(res, vrg::AbstractVRGradient, x, i) = not_implemented()
+
+approx!(res, vrg::AbstractVRGradient) = not_implemented()
+
+vrgrad!(res, vrg::AbstractVRGradient, x, i, innv_weight) = not_implemented()
+vrgrad_store!(res, vrg::AbstractVRGradient, x, i, innv_weight)=not_implemented()
 
 not_implemented() = error("Not Implemented.")
 
 
-
-##############################
 # Convenience remappings
-# For instance: Calling with same output as input (should always be a valid)
-
-store_grad!(vrg::AbstractVRGradient, x) = store_grad!(vrg, x, 1:nfunc(vrg))
-
-add_grad!(x, vrg::AbstractVRGradient, i, step) =
-	add_grad!(x,vrg,x,i,step)
-
-add_vrgrad!(x, vrg::AbstractVRGradient, i, step_innv, step_approx) =
-	add_vrgrad!(x,vrg,x,i,step_innv,step_approx)
-
-addandstore_grad!(x, vrg::AbstractVRGradient, i, step) =
-	addandstore_grad!(x,vrg,x,i,step)
-
-addandstore_vrgrad!(x, vrg::AbstractVRGradient, i, step_innv, step_approx) =
-	addandstore_vrgrad!(x,vrg,x,i,step_innv,step_approx)
+grad_store!(vrg::AbstractVRGradient, x) = grad_store!(vrg, x, 1:nfunc(vrg))
 
 
 
@@ -68,41 +52,39 @@ function reset!(vrg::VRGradient)
 	end
 end
 
-function store_grad!(vrg::VRGradient, x, ids)
+
+grad!(res, vrg::VRGradient, x, i) = vrg.grad!(res, x, i)
+function grad_store!(vrg::VRGradient, x, ids)
 	for i in ids
 		vrg.ysum .-= vrg.y[i]
 		vrg.grad!(vrg.y[i], x, i)
 		vrg.ysum .+= vrg.y[i]
 	end
 end
-
-function add_grad!(res, vrg::VRGradient, x, i, step)
-	vrg.grad!(vrg.buf, x, i)
-	res .+= step.*vrg.buf
-end
-
-function add_approx!(res, vrg::VRGradient, step)
-	res .+= step./nfunc(vrg).*vrg.ysum
-end
-
-function add_vrgrad!(res, vrg::VRGradient, x, i, step_innv, step_approx)
-	add_grad!(res,vrg,x,i,step_innv)
-	res .-= step_innv.*vrg.y[i]
-	add_approx!(res, vrg, step_approx)
-end
-
-function addandstore_grad!(res, vrg::VRGradient, x, i, step)
+function grad_store!(res, vrg::VRGradient, x, i)
 	vrg.ysum .-= vrg.y[i]
 	vrg.grad!(vrg.y[i], x, i)
 	vrg.ysum .+= vrg.y[i]
-	res .+= step.*vrg.y[i]
+	res .= vrg.y[i]
 end
 
-function addandstore_vrgrad!(res, vrg::VRGradient, x, i, step_innv, step_approx)
-	vrg.grad!(vrg.buf, x, i)
-	res .+= step_innv.*(vrg.buf.-vrg.y[i]) .+ step_approx./nfunc(vrg).*vrg.ysum
-	vrg.ysum .+= vrg.buf .- vrg.y[i]
-	vrg.y[i] .= vrg.buf
+
+approx!(res, vrg::VRGradient) = (res .= vrg.ysum./nfunc(vrg))
+
+
+function vrgrad!(res, vrg::VRGradient, x, i, innv_weight)
+	approx!(res, vrg)
+	grad!(vrg.buf,vrg,x,i)
+	vrg.buf .-= vrg.y[i]
+	res .+= innv_weight.*vrg.buf
+end
+function vrgrad_store!(res, vrg::VRGradient, x, i, innv_weight)
+	approx!(res, vrg)
+	res .-= innv_weight.*vrg.y[i]
+	vrg.ysum .-= vrg.y[i]
+	grad!(vrg.y[i],vrg,x,i)
+	res .+= innv_weight.*vrg.y[i]
+	vrg.ysum .+= vrg.y[i]
 end
 
 
@@ -139,41 +121,35 @@ function reset!(vrg::LinearVRG)
 	vrg.y .= zero(eltype(vrg.y))
 end
 
-function store_grad!(vrg::LinearVRG, x, ids)
+
+grad!(res, vrg::LinearVRG, x, i) = (res .= vrg.data[i].*sgrad(vrg,x,i))
+function grad_store!(vrg::LinearVRG, x, ids)
 	for i in ids
 		innv = sgrad(vrg, x, i) - vrg.y[i]
 		vrg.ysum .+= vrg.data[i].*innv
 		vrg.y[i] += innv
 	end
 end
-
-function add_grad!(res, vrg::LinearVRG, x, i, step)
+function grad_store!(res, vrg::LinearVRG, x, i)
 	g = sgrad(vrg, x, i)
-	res .+= vrg.data[i].*g.*step
-end
-
-function add_approx!(res, vrg::LinearVRG, step)
-	res .+= vrg.ysum./nfunc(vrg).*step
-end
-
-function add_vrgrad!(res, vrg::LinearVRG, x, i, step_innv, step_approx)
-	innv = sgrad(vrg, x, i) - vrg.y[i]
-	res .+= vrg.data[i].*innv.*step_innv
-	add_approx!(res, vrg, step_approx)
-end
-
-function addandstore_grad!(res, vrg::LinearVRG, x, i, step)	
-	g = sgrad(vrg, x, i)
-	res .+= vrg.data[i].*g.*step
+	res .= vrg.data[i].*g
 	vrg.ysum .+= vrg.data[i].*(g .- vrg.y[i])
 	vrg.y[i] = g
 end
 
-function addandstore_vrgrad!(
-		res, vrg::LinearVRG, x, i, step_innv, step_approx)
+
+approx!(res, vrg::LinearVRG) = (res .= vrg.ysum./nfunc(vrg))
+
+
+function vrgrad!(res, vrg::LinearVRG, x, i, innv_weight)
+	approx!(res, vrg)
 	innv = sgrad(vrg, x, i) - vrg.y[i]
-	res .+= vrg.data[i].*innv.*step_innv
-	add_approx!(res, vrg, step_approx)
+	res .+= vrg.data[i].*innv.*innv_weight
+end
+function vrgrad_store!(res, vrg::LinearVRG, x, i, innv_weight)
+	approx!(res, vrg)
+	innv = sgrad(vrg, x, i) - vrg.y[i]
+	res .+= vrg.data[i].*innv.*innv_weight
 	vrg.ysum .+= vrg.data[i].*innv
 	vrg.y[i] += innv
 end
@@ -201,10 +177,12 @@ Base.getindex(vrg::UniformVRG, i::Int) =
 
 function reset!(vrg::UniformVRG)
 	vrg.xmem .= zero(eltype(vrg.xmem))
-	store_grad!(vrg, vrg.xmem)
+	grad_store!(vrg, vrg.xmem)
 end
 
-function store_grad!(vrg::UniformVRG, x)
+
+grad!(res, vrg::UniformVRG, x, i) = vrg.grad!(res, x, i)
+function grad_store!(vrg::UniformVRG, x)
 	vrg.xmem .= x
 	vrg.grad!(vrg.ymean, x, 1)
 	for i = 2:nfunc(vrg)
@@ -214,26 +192,21 @@ function store_grad!(vrg::UniformVRG, x)
 	vrg.ymean ./= nfunc(vrg)
 end
 
-function add_grad!(res, vrg::UniformVRG, x, i, step)
+
+approx!(res, vrg::UniformVRG) = (res .= vrg.ymean)
+
+
+function vrgrad!(res, vrg::UniformVRG, x, i, innv_weight)
+	approx!(res, vrg)
 	vrg.grad!(vrg.buf, x, i)
-	res .+= step.*vrg.buf
-end
-
-function add_approx!(res, vrg::UniformVRG, step)
-	res .+= vrg.ymean.*step
-end
-
-function add_vrgrad!(res, vrg::UniformVRG, x, i, step_innv, step_approx)	
-	add_grad!(res, vrg, x, i, step_innv)
+	res .+= innv_weight.*vrg.buf
 	vrg.grad!(vrg.buf, vrg.xmem, i)
-	res .-= step_innv.*vrg.buf
-	add_approx!(res, vrg, step_approx)
+	res .-= innv_weight.*vrg.buf
 end
 
 
 invalid() = error("UniformVRG only support uniform store operations.")
 
 store_grad!(vrg::UniformVRG, x, ids) = invalid()
-addandstore_grad!(res, vrg::UniformVRG, x, i, step) = invalid()
-addandstore_vrgrad!(
-		res, vrg::UniformVRG, x, i, step_innv, step_approx) = invalid()
+grad_store!(res, vrg::UniformVRG, x, i) = invalid()
+vrgrad_store!(res, vrg::UniformVRG, x, i, innv_weight) = invalid()

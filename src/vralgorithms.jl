@@ -60,6 +60,7 @@ dualiterates(alg::VRAlgorithm) = nothing
 struct SAGA{T,X,VRG,S<:IndexSampling} <: VRAlgorithm
 	stepsize::T
 	x::X
+	x_tmp::X
 	x0::X
 	vrg::VRG
 	sampling::S
@@ -68,12 +69,14 @@ end
 function SAGA(stepsize, vrg, x0, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
 	x = similar(x0)
-	SAGA(stepsize, x, x0, vrg, sampling)
+	x_tmp = similar(x0)
+	SAGA(stepsize, x, x_tmp, x0, vrg, sampling)
 end
 function SAGA(stepsize, vrg, x0, rng, w)
 	sampling = WeightedSampling(rng, w)
 	x = similar(x0)
-	SAGA(stepsize, x, x0, vrg, sampling)
+	x_tmp = similar(x0)
+	SAGA(stepsize, x, x_tmp, x0, vrg, sampling)
 end
 # Interface
 function initialize!(alg::SAGA)
@@ -82,8 +85,9 @@ function initialize!(alg::SAGA)
 end
 function update!(alg::SAGA, iter, stage)
 	(i,p) = alg.sampling()
-	ss_innv = alg.stepsize/(nfunc(alg.vrg)*p)
-	addandstore_vrgrad!(alg.x, alg.vrg, i, -ss_innv, -alg.stepsize)
+	innv_weight = 1/(nfunc(alg.vrg)*p)
+	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	alg.x .-= alg.stepsize.*alg.x_tmp
 end
 stageupdate!(alg::SAGA) = 1
 primiterates(alg::SAGA) = alg.x
@@ -96,6 +100,7 @@ struct SVRG{T,I,X,VRG,S<:IndexSampling} <: VRAlgorithm
 	stepsize::T
 	stagelen::I
 	x::X
+	x_tmp::X
 	vrg::VRG
 	x0::X
 	sampling::S
@@ -104,12 +109,14 @@ end
 function SVRG(stepsize, stagelen, vrg, x0, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
 	x = similar(x0)
-	SVRG(stepsize,stagelen,x,vrg,x0,sampling)
+	x_tmp = similar(x0)
+	SVRG(stepsize,stagelen,x,x_tmp,vrg,x0,sampling)
 end
 function SVRG(stepsize, stagelen, vrg, x0, rng, w)
 	sampling = WeightedSampling(rng, w)
 	x = similar(x0)
-	SVRG(stepsize,stagelen,x,vrg,x0,sampling)
+	x_tmp = similar(x0)
+	SVRG(stepsize,stagelen,x,x_tmp,vrg,x0,sampling)
 end
 # Interface
 function initialize!(alg::SVRG)
@@ -118,11 +125,12 @@ function initialize!(alg::SVRG)
 end
 function update!(alg::SVRG, iter, stage)
 	(i,p) = alg.sampling()
-	ss_innv = alg.stepsize/(nfunc(alg.vrg)*p)
-	add_vrgrad!(alg.x, alg.vrg, i, -ss_innv, -alg.stepsize)
+	innv_weight = 1/(nfunc(alg.vrg)*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	alg.x .-= alg.stepsize.*alg.x_tmp
 end
 function stageupdate!(alg::SVRG)
-	store_grad!(alg.vrg, alg.x)
+	grad_store!(alg.vrg, alg.x)
 	return alg.stagelen
 end
 primiterates(alg::SVRG) = alg.x
@@ -132,10 +140,10 @@ dualiterates(alg::SVRG) = alg.vrg
 
 ##############################
 # Loopless SVRG
-struct LSVRG{T,I,X,VRG,S<:IndexSampling,Q,RNG} <:VRAlgorithm
+struct LSVRG{T,X,VRG,S<:IndexSampling,Q,RNG} <:VRAlgorithm
 	stepsize::T
-	x::I
-	x_prev::X
+	x::X
+	x_tmp::X
 	vrg::VRG
 	x0::X
 	sampling::S
@@ -146,14 +154,14 @@ end
 function LSVRG(stepsize, vrg, x0, q, rng)
 	sampling = UniformSampling(rng, nfunc(vrg))
 	x = similar(x0)
-	x_prev = similar(x0)
-	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, q ,rng)
+	x_tmp = similar(x0)
+	LSVRG(stepsize, x, x_tmp, vrg, x0, sampling, q ,rng)
 end
 function LSVRG(stepsize, vrg, x0, q, rng, w)
 	sampling = WeightedSampling(rng, w)
 	x = similar(x0)
-	x_prev = similar(x0)
-	LSVRG(stepsize, x, x_prev, vrg, x0, sampling, q ,rng)
+	x_tmp = similar(x0)
+	LSVRG(stepsize, x, x_tmp, vrg, x0, sampling, q ,rng)
 end
 # Interface
 function initialize!(alg::LSVRG)
@@ -162,11 +170,10 @@ function initialize!(alg::LSVRG)
 end
 function update!(alg::LSVRG, iter, stage)
 	(i,p) = alg.sampling()
-	ss_innv = alg.stepsize/(nfunc(alg.vrg)*p)
-	alg.x_prev .= alg.x
-	add_vrgrad!(alg.x, alg.vrg, i, -ss_innv, -alg.stepsize)
-
-	rand(alg.rng) < alg.q && store_grad!(alg.vrg, alg.x_prev)
+	innv_weight = 1/(nfunc(alg.vrg)*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	rand(alg.rng) < alg.q && grad_store!(alg.vrg, alg.x)
+	alg.x .-= alg.stepsize.*alg.x_tmp
 end
 stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x

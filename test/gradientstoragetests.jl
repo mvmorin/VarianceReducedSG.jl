@@ -10,12 +10,11 @@ Random.seed!(0)
 using VarianceReducedSG:
 	nfunc,
 	reset!,
-	add_grad!,
-	add_approx!,
-	add_vrgrad!,
-	addandstore_grad!,
-	addandstore_vrgrad!,
-	store_grad!
+	grad!,
+	approx!,
+	vrgrad!,
+	grad_store!,
+	vrgrad_store!
 
 
 function allsame(g1, g2)
@@ -60,14 +59,14 @@ function resetstorereset(g1, g2, n, dim)
 
 	x = randn(dim)
 	i = rand(1:n)
-	store_grad!(g1,x,i)
+	grad_store!(g1,x,i)
 	@test allsameexcept(g1, g2, i)
 	
 	ids = rand(1:n, Int(ceil(n/10)))
-	store_grad!(g1,x,ids)
+	grad_store!(g1,x,ids)
 	@test allsameexcept(g1, g2, [i;ids])
 
-	store_grad!(g1,x)
+	grad_store!(g1,x)
 	@test allsameexcept(g1, g2, 1:n)
 
 	reset!(g1)
@@ -82,14 +81,14 @@ function nonmodifying_calls(g1, g2, n, dim)
 	x = randn(dim)
 	x_ctrl = copy(x)
 	
-	add_grad!(res, g1, x, rand(1:n), randn())
+	grad!(res, g1, x, rand(1:n))
 	@test allsame(g1, g2)
 	@test x == x_ctrl
 	
-	add_approx!(res, g1, randn())
+	approx!(res, g1)
 	@test allsame(g1, g2)
 
-	add_vrgrad!(res, g1, x, rand(1:n), randn(), randn())
+	vrgrad!(res, g1, x, rand(1:n), randn())
 	@test allsame(g1, g2)
 	@test x == x_ctrl
 	
@@ -110,7 +109,7 @@ function modifying_calls(g1, g2, n, dim)
 	i = rand(1:n)
 	mod_ids = [i]
 
-	addandstore_grad!(res, g1, x, i, randn())
+	grad_store!(res, g1, x, i)
 	@test allsameexcept(g1, g2, mod_ids)
 	@test !isapprox(res, x)
 
@@ -119,7 +118,7 @@ function modifying_calls(g1, g2, n, dim)
 	i = rand(1:n)
 	mod_ids = [mod_ids; i]
 	
-	addandstore_grad!(res, g1, x, i, randn())
+	grad_store!(res, g1, x, i)
 	@test allsameexcept(g1, g2, mod_ids)
 	@test !isapprox(res, x)
 
@@ -128,7 +127,7 @@ function modifying_calls(g1, g2, n, dim)
 	i = rand(1:n)
 	mod_ids = [mod_ids; i]
 
-	addandstore_vrgrad!(res, g1, x, i, randn(), randn())
+	vrgrad_store!(res, g1, x, i, randn())
 	@test allsameexcept(g1, g2, mod_ids)
 	@test !isapprox(res, x)
 
@@ -137,7 +136,7 @@ function modifying_calls(g1, g2, n, dim)
 	i = rand(1:n)
 	mod_ids = [mod_ids; i]
 
-	addandstore_vrgrad!(res, g1, x, i, randn(), randn())
+	vrgrad_store!(res, g1, x, i, randn())
 	@test allsameexcept(g1, g2, mod_ids)
 	@test !isapprox(res, x)
 
@@ -148,8 +147,8 @@ end
 
 function correct_grad(g, n, dim, f)
 	# Scramble memories a little
-	store_grad!(g, randn(dim))
-	store_grad!(g, randn(dim), rand(1:n, Int(ceil(n/7))))
+	grad_store!(g, randn(dim))
+	grad_store!(g, randn(dim), rand(1:n, Int(ceil(n/7))))
 	
 	x1 = randn(dim)
 	i1 = rand(1:n)
@@ -162,84 +161,72 @@ function correct_grad(g, n, dim, f)
 	f(ctrl2,x2,i2)
 
 
-	res = zeros(dim)
-	step1 = randn()
-	step2 = randn()
+	res = randn(dim)
+	grad!(res, g, x1, i1)
+	@test isapprox(res, ctrl1)
 	
-	add_grad!(res, g, x1, i1, step1)
-	@test isapprox(res, step1*ctrl1)
-	
-	addandstore_grad!(res, g, x2, i2, step2)
-	@test isapprox(res, step1*ctrl1 + step2*ctrl2)
+	grad_store!(res, g, x2, i2)
+	@test isapprox(res, ctrl2)
 	
 
-	res = zeros(dim)
-	step1 = randn()
-	step2 = randn()
+	res = randn(dim)
+	grad_store!(res, g, x1, i1)
+	@test isapprox(res, ctrl1)
 	
-	addandstore_grad!(res, g, x1, i1, step1)
-	@test isapprox(res, step1*ctrl1)
-	
-	add_grad!(res, g, x2, i2, step2)
-	@test isapprox(res, step1*ctrl1 + step2*ctrl2)
+	grad!(res, g, x2, i2)
+	@test isapprox(res, ctrl2)
 		
 	
 	x = randn(dim)
 	i = rand(1:n)
-	step = randn()
 	
 	res1 = randn(dim)
 	res2 = copy(res1)
-	add_grad!(res1, g, x, i, step)
-	add_grad!(res2, g, x, i, step)
+	grad!(res1, g, x, i)
+	grad!(res2, g, x, i)
 	@test isapprox(res1, res2)
 	
 	res1 = randn(dim)
 	res2 = copy(res1)
-	add_grad!(res1, g, x, i, step)
-	addandstore_grad!(res2, g, x, i, step)
+	grad!(res1, g, x, i)
+	grad_store!(res2, g, x, i)
 	@test isapprox(res1, res2)
 end
 
 function correct_approximation(g, n, dim, f)
 	# Uniform storage	
 	x = randn(dim)
-	step = randn()
 	
-	ctrl = copy(x)
+	ctrl = zeros(dim)
 	buf = similar(x)
 	for i = 1:n
 		f(buf, x, i)
-		ctrl .+= step.*buf./n
+		ctrl .+= buf./n
 	end
 	
 	
-	store_grad!(g, x)
+	grad_store!(g, x)
 
-	x_res = copy(x)
-	add_approx!(x_res, g, step)
+	x_res = randn(dim)
+	approx!(x_res, g)
 	@test isapprox(x_res, ctrl)
 
-	x_res = copy(x)
-	add_vrgrad!(x_res, g, x, rand(1:n), randn(), step)
+	vrgrad!(x_res, g, x, rand(1:n), randn())
 	@test isapprox(x_res, ctrl)
 	
-	x_res = copy(x)
-	addandstore_vrgrad!(x_res, g, x, rand(1:n), randn(), step)
+	vrgrad_store!(x_res, g, x, rand(1:n), randn())
 	@test isapprox(x_res, ctrl)
 	
-	x_res = copy(x)
-	add_approx!(x_res, g, step)
+	approx!(x_res, g)
 	@test isapprox(x_res, ctrl)
 	
-	x_res = copy(x)
-	add_vrgrad!(x_res, g, x, rand(1:n), randn(), step)
+	vrgrad!(x_res, g, x, rand(1:n), randn())
 	@test isapprox(x_res, ctrl)
 
 	
 	# Non-uniform storage
-	old_approx = zeros(dim)
-	add_approx!(old_approx, g, 1.0)
+	old_approx = randn(dim)
+	approx!(old_approx, g)
 
 	x = randn(dim)
 	i = rand(1:n)
@@ -248,10 +235,10 @@ function correct_approximation(g, n, dim, f)
 	new_y = zeros(dim)
 	f(new_y, x, i)
 	
-	store_grad!(g, x, i)
+	grad_store!(g, x, i)
 	
-	new_approx = zeros(dim)
-	add_approx!(new_approx, g, 1.0)
+	new_approx = randn(dim)
+	approx!(new_approx, g)
 	@test isapprox(new_approx, old_approx + (new_y - old_y)/n)
 
 	
@@ -263,10 +250,10 @@ function correct_approximation(g, n, dim, f)
 	new_y = zeros(dim)
 	f(new_y, x, i)
 	
-	addandstore_vrgrad!(zeros(dim), g, x, i, randn(), randn())
+	vrgrad_store!(zeros(dim), g, x, i, randn())
 	
-	new_approx = zeros(dim)
-	add_vrgrad!(new_approx, g, randn(dim), rand(1:n), 0, 1)
+	new_approx = randn(dim)
+	vrgrad!(new_approx, g, randn(dim), rand(1:n), 0)
 	@test isapprox(new_approx, old_approx + (new_y - old_y)/n)
 	
 	
@@ -278,28 +265,34 @@ function correct_approximation(g, n, dim, f)
 	new_y = zeros(dim)
 	f(new_y, x, i)
 	
-	addandstore_grad!(zeros(dim), g, x, i, randn())
+	grad_store!(zeros(dim), g, x, i)
 	
-	new_approx = zeros(dim)
-	addandstore_vrgrad!(new_approx, g, randn(dim), rand(1:n), 0, 1)
+	new_approx = randn(dim)
+	vrgrad_store!(new_approx, g, randn(dim), rand(1:n), 0)
 	@test isapprox(new_approx, old_approx + (new_y - old_y)/n)
 end
 
 function correct_innovation(g, n, dim, f)
 	x = randn(dim)
-	store_grad!(g, x)
+	grad_store!(g, x)
 	
-	res = zeros(dim)
-	add_vrgrad!(res, g, x, rand(1:n), randn(), 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-10)
+	res = randn(dim)
+	res_app = randn(dim)
+	approx!(res_app, g)
+	vrgrad!(res, g, x, rand(1:n), randn())
+	@test isapprox(res, res_app)
 
-	res = zeros(dim)
-	addandstore_vrgrad!(res, g, x, rand(1:n), randn(), 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-10)
+	res = randn(dim)
+	res_app = randn(dim)
+	approx!(res_app, g)
+	vrgrad_store!(res, g, x, rand(1:n), randn())
+	@test isapprox(res, res_app)
 	
-	res = zeros(dim)
-	add_vrgrad!(res, g, x, rand(1:n), randn(), 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-10)
+	res = randn(dim)
+	res_app = randn(dim)
+	approx!(res_app, g)
+	vrgrad!(res, g, x, rand(1:n), randn())
+	@test isapprox(res, res_app)
 
 
 	x = randn(dim)
@@ -310,169 +303,115 @@ function correct_innovation(g, n, dim, f)
 
 	step = randn()
 	res = zeros(dim)
-	add_vrgrad!(res, g, x, i, step, 0.0)
-	@test isapprox(res, step*(new_y - old_y))
+	res_app = randn(dim)
+	approx!(res_app, g)
+	vrgrad!(res, g, x, i, step)
+	@test isapprox(res, res_app + step*(new_y - old_y))
 	
 	step = randn()
 	res = zeros(dim)
-	addandstore_vrgrad!(res, g, x, i, step, 0.0)
-	@test isapprox(res, step*(new_y - old_y))
+	res_app = randn(dim)
+	approx!(res_app, g)
+	vrgrad_store!(res, g, x, i, step)
+	@test isapprox(res, res_app + step*(new_y - old_y))
 	
 	step = randn()
 	res = zeros(dim)
-	add_vrgrad!(res, g, x, i, step, 0.0)
-	@test isapprox(res, zeros(dim), atol=1e-10)
+	res_app = randn(dim)
+	approx!(res_app, g)
+	vrgrad!(res, g, x, i, step)
+	@test isapprox(res, res_app)
 
 
 	x = randn(dim)
 	i = rand(1:n)
 	step_innv = randn()
-	step_approx = randn()
 	
 	vr_ctrl = zeros(dim)
+	tmp = zeros(dim)
 	vr_ctrl .-= step_innv.*g[i]
-	add_grad!(vr_ctrl, g, x, i, step_innv)
-	add_approx!(vr_ctrl, g, step_approx)
+	grad!(tmp, g, x, i)
+	vr_ctrl .+= step_innv.*tmp
+	approx!(tmp, g)
+	vr_ctrl .+= tmp
 
-	vr = zeros(dim)
-	add_vrgrad!(vr, g, x, i, step_innv, step_approx)
+	vr = randn(dim)
+	vrgrad!(vr, g, x, i, step_innv)
 	@test isapprox(vr, vr_ctrl)
 
-	res = copy(x)
-	add_vrgrad!(res, g, x, i, step_innv, step_approx)
-	@test isapprox(res, x + vr_ctrl)
+	res = randn(dim)
+	vrgrad!(res, g, x, i, step_innv)
+	@test isapprox(res, vr_ctrl)
 	
 	res = copy(x)
-	addandstore_vrgrad!(res, g, x, i, step_innv, step_approx)
-	@test isapprox(res, x + vr_ctrl)
-	
-	
-	x = randn(dim)
-	i = rand(1:n)
-	step_innv = randn()
-	step_approx = randn()
-	
-	res1 = randn(dim)
-	res2 = copy(res1)
-	add_vrgrad!(res1, g, x, i, step_innv, step_approx)
-	add_vrgrad!(res2, g, x, i, step_innv, step_approx)
-	@test isapprox(res1, res2)
-	
-	res1 = randn(dim)
-	res2 = copy(res1)
-	add_vrgrad!(res1, g, x, i, step_innv, step_approx)
-	addandstore_vrgrad!(res2, g, x, i, step_innv, step_approx)
-	@test isapprox(res1, res2)
+	vrgrad_store!(res, g, x, i, step_innv)
+	@test isapprox(res, vr_ctrl)
 end
 
-function input_overwriting(g1, g2, n, dim)
-	reset!(g1)
-	reset!(g2)
-
-	# Scramble memories
-	x = randn(dim)
-	store_grad!(g1, x)
-	store_grad!(g2, x)
-	for _ = 1:n
-		x = randn(dim)
-		i = rand(1:n)
-		store_grad!(g1, x, i)
-		store_grad!(g2, x, i)
-	end
-	
-	x = randn(dim)
-	i = rand(1:n)
-	step_innv = randn()
-	step_approx = randn()
-	
-	res1 = copy(x)
-	res2 = copy(x)
-	addandstore_vrgrad!(res1, g1, i, step_innv, step_approx)
-	addandstore_vrgrad!(res2, g2, x, i, step_innv, step_approx)
-	@test isapprox(res1, res2)
-	
-	
-	x = randn(dim)
-	i = rand(1:n)
-	step_innv = randn()
-	step_approx = randn()
-	
-	res1 = copy(x)
-	res2 = copy(x)
-	add_vrgrad!(res1, g1, i, step_innv, step_approx)
-	add_vrgrad!(res2, g2, x, i, step_innv, step_approx)
-	@test isapprox(res1, res2)
-end
 
 function equivalent(g1, g2, n, dim; uniform_store = false)
 	x = randn(dim)
-	store_grad!(g1, x)
-	store_grad!(g2, x)
+	grad_store!(g1, x)
+	grad_store!(g2, x)
 	@test allsame(g1,g2)
 
 	if !uniform_store
 		x = randn(dim)
 		ids = 1:3:n
-		store_grad!(g1, x, ids)
-		store_grad!(g2, x, ids)
+		grad_store!(g1, x, ids)
+		grad_store!(g2, x, ids)
 		@test allsame(g1,g2)
 
 
 		x = randn(dim)
 		i = rand(1:n)
-		step = randn()
 
 		res1 = randn(dim)
-		res2 = copy(res1)
-		addandstore_grad!(res1, g1, x, i, step)
-		addandstore_grad!(res2, g2, x, i, step)
+		res2 = randn(dim)
+		grad_store!(res1, g1, x, i)
+		grad_store!(res2, g2, x, i)
 		@test isapprox(res1, res2)
 
 
 		x = randn(dim)
 		i = rand(1:n)
-		step_innv = randn()
-		step_approx = randn()
+		innv = randn()
 
 		res1 = randn(dim)
-		res2 = copy(res1)
+		res2 = randn(dim)
 		x_ctrl = copy(x)
-		addandstore_vrgrad!(res1, g1, x, i, step_innv, step_approx)
-		addandstore_vrgrad!(res2, g2, x, i, step_innv, step_approx)
+		vrgrad_store!(res1, g1, x, i, innv)
+		vrgrad_store!(res2, g2, x, i, innv)
 		@test isapprox(res1, res2)
 		@test isapprox(x, x_ctrl)
 	end
-
 	
 	x = randn(dim)
 	i = rand(1:n)
-	step = randn()
 	
 	res1 = randn(dim)
-	res2 = copy(res1)
-	add_grad!(res1, g1, x, i, step)
-	add_grad!(res2, g2, x, i, step)
+	res2 = randn(dim)
+	grad!(res1, g1, x, i)
+	grad!(res2, g2, x, i)
 	@test isapprox(res1, res2)
 	
 
-	step = randn()
 	res1 = randn(dim)
-	res2 = copy(res1)
-	add_approx!(res1, g1, step)
-	add_approx!(res2, g2, step)
+	res2 = randn(dim)
+	approx!(res1, g1)
+	approx!(res2, g2)
 	@test isapprox(res1, res2)
 	
 	
 	x = randn(dim)
 	i = rand(1:n)
-	step_innv = randn()
-	step_approx = randn()
+	innv = randn()
 
 	res1 = randn(dim)
-	res2 = copy(res1)
+	res2 = randn(dim)
 	x_ctrl = copy(x)
-	add_vrgrad!(res1, g1, x, i, step_innv, step_approx)
-	add_vrgrad!(res2, g2, x, i, step_innv, step_approx)
+	vrgrad!(res1, g1, x, i, innv)
+	vrgrad!(res2, g2, x, i, innv)
 	@test isapprox(res1, res2)
 	@test isapprox(x, x_ctrl)
 end
@@ -490,32 +429,30 @@ function allocation(g,n,dim; uniform_store=false)
 	ids = 1:3:n
 	i = rand(1:n)
 	step_innv = randn()
-	step_approx = randn()
 
 	if uniform_store
-		store_grad!(g,x)
-		@test 0 == @allocated store_grad!(g,x)
+		grad_store!(g,x)
+		@test 0 == @allocated grad_store!(g,x)
 	else
-		store_grad!(g,x,ids)
-		@test 0 == @allocated store_grad!(g,x,ids)
+		grad_store!(g,x,ids)
+		@test 0 == @allocated grad_store!(g,x,ids)
 
-		addandstore_grad!(res, g, x, i , step_innv)
-		@test 0 == @allocated addandstore_grad!(res, g, x, i , step_innv)
+		grad_store!(res, g, x, i)
+		@test 0 == @allocated grad_store!(res, g, x, i)
 
-		addandstore_vrgrad!(res, g, x, i , step_innv, step_approx)
-		@test 0 == @allocated addandstore_vrgrad!(
-								res, g, x, i , step_innv, step_approx)
+		vrgrad_store!(res, g, x, i ,step_innv)
+		@test 0 == @allocated vrgrad_store!(res, g, x, i, step_innv)
 	end
 
 
-	add_grad!(res, g, x, i, step_innv)
-	@test 0 == @allocated add_grad!(res, g, x, i, step_innv)
+	grad!(res, g, x, i)
+	@test 0 == @allocated grad!(res, g, x, i)
 
-	add_approx!(res, g, step_approx)
-	@test 0 == @allocated add_approx!(res, g, step_approx)
+	approx!(res, g)
+	@test 0 == @allocated approx!(res, g)
 
-	add_vrgrad!(res, g, x, i, step_innv, step_approx)
-	@test 0 == @allocated add_vrgrad!(res, g, x, i, step_innv, step_approx)
+	vrgrad!(res, g, x, i, step_innv)
+	@test 0 == @allocated vrgrad!(res, g, x, i, step_innv)
 end
 
 
@@ -539,8 +476,6 @@ end
 		correct_grad(g1, n, dim, isq)
 		correct_approximation(g1, n, dim, isq)
 		correct_innovation(g1, n, dim, isq)
-
-		input_overwriting(g1, g2, n, dim)
 
 		allocation(g1, n, dim)
 	end
@@ -574,8 +509,6 @@ end
 		correct_approximation(g1, n, dim, isq)
 		correct_innovation(g1, n, dim, isq)
 
-		input_overwriting(g1, g2, n, dim)
-
 		g_ctrl = VRGradient(isq, zeros(dim), n)
 		equivalent(g1, g_ctrl, n, dim)
 
@@ -608,8 +541,6 @@ end
 		correct_approximation(g1, n, dim, isq)
 		correct_innovation(g1, n, dim, isq)
 
-		input_overwriting(g1, g2, n, dim)
-
 		gd = LinearVRG(sq, data, zeros(dim))
 		equivalent(g1, gd, n, dim)
 
@@ -630,8 +561,8 @@ end
 		
 
 		x = randn(dim)
-		store_grad!(g1,x)
-		store_grad!(g2,x)
+		grad_store!(g1,x)
+		grad_store!(g2,x)
 		@test allsame(g1,g2)
 		
 		reset!(g1)
@@ -648,11 +579,10 @@ end
 		x = randn(dim)
 		i = rand(1:n)
 		res = randn(dim)
-		s1 = randn()
-		s2 = randn()
-		@test_throws ErrorException store_grad!(g1, x, i)
-		@test_throws ErrorException addandstore_grad!(res, g1, x, i, s1)
-		@test_throws ErrorException addandstore_vrgrad!(res, g1, x, i, s1, s2)
+		innv = randn()
+		@test_throws ErrorException grad_store!(g1, x, i)
+		@test_throws ErrorException grad_store!(res, g1, x, i)
+		@test_throws ErrorException vrgrad_store!(res, g1, x, i, innv)
 	end
 end
 
