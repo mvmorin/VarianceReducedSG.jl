@@ -17,7 +17,10 @@ include("loggers.jl")
 ################################################################################
 export iterate!
 
-function iterate!(alg::VRAlgorithm, nstages, logger = NoLog(), iterperlog = 1)
+function iterate!(alg::VRAlgorithm, niter, logger=NoLog(), nlogs=1)
+	iterperlog = Int(ceil(niter/nlogs))
+	nstages = Int(ceil(nlogs*iterperlog/exp_stagelen(alg)))
+
 	initialize!(logger)
 	initialize!(alg)
 

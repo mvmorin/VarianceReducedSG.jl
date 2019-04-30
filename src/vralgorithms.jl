@@ -54,6 +54,8 @@ initialize!(alg::VRAlgorithm) = nothing
 primiterates(alg::VRAlgorithm) = nothing
 dualiterates(alg::VRAlgorithm) = nothing
 
+exp_stagelen(alg::VRAlgorithm) = nothing
+
 
 ##############################
 # SAGA
@@ -94,6 +96,7 @@ end
 stageupdate!(alg::SAGA) = 1
 primiterates(alg::SAGA) = alg.x
 dualiterates(alg::SAGA) = alg.vrg
+exp_stagelen(alg::SAGA) = 1
 
 
 ##############################
@@ -139,6 +142,7 @@ function stageupdate!(alg::SVRG)
 end
 primiterates(alg::SVRG) = alg.x
 dualiterates(alg::SVRG) = alg.vrg
+exp_stagelen(alg::SVRG) = alg.stagelen
 
 
 
@@ -184,3 +188,4 @@ end
 stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x
 dualiterates(alg::LSVRG) = alg.vrg
+exp_stagelen(alg::LSVRG) = 1

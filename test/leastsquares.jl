@@ -27,14 +27,14 @@ function setup_ls(N, n, mt)
 	return data, b, x0, x_star
 end
 
-function solve_and_test(alg, nstages, loggers, iterperlog, x_star)
-	iterate!(alg, nstages, loggers, iterperlog)
+function solve_and_test(alg, niter, loggers, nlogs, x_star)
+	iterate!(alg, niter, loggers, nlogs)
 	@test isapprox(primiterates(alg), x_star)
 
-	iterate!(alg, nstages, NoLog(), iterperlog)
+	iterate!(alg, niter)
 	@test isapprox(primiterates(alg), x_star)
 
-	iterate!(alg, nstages, loggers, iterperlog)
+	iterate!(alg, niter, loggers, nlogs)
 	@test isapprox(primiterates(alg), x_star)
 end
 
@@ -67,9 +67,9 @@ function SAGA_VRGradient()
 		)
 
 	# Solve
-	nstages = n*500
-	iterperlog = Int(floor(nstages/10))
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	niter = n*500
+	nlogs = 10
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 function SAGA_LinearVRG()
@@ -98,9 +98,9 @@ function SAGA_LinearVRG()
 		)
 
 	# Solve
-	nstages = n*500
-	iterperlog = Int(floor(nstages/10))
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	niter = n*500
+	nlogs = 10
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 function SAGA_VRGradient_Importance()
@@ -131,9 +131,9 @@ function SAGA_VRGradient_Importance()
 		)
 
 	# Solve
-	nstages = n*500
-	iterperlog = Int(floor(nstages/10))
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	niter = n*500
+	nlogs = 10
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 
@@ -156,7 +156,8 @@ function SVRG_VRGradient()
 	vrg = VRGradient(f, zeros(N), n)
 	
 	# Create Algorithm
-	alg = SVRG(vrg, x0, 1/3, Int(ceil(n/2)), mt)
+	stagelen = Int(ceil(n/2))
+	alg = SVRG(vrg, x0, 1/3, stagelen, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -167,9 +168,9 @@ function SVRG_VRGradient()
 		)
 
 	# Solve
-	nstages = 100
-	iterperlog = Int(floor(nstages*n/2/10))
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	niter = 100*stagelen
+	nlogs = 10
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 function SVRG_UniformVRG()
@@ -186,7 +187,8 @@ function SVRG_UniformVRG()
 	vrg = UniformVRG(f, zeros(N), n)
 	
 	# Create Algorithm
-	alg = SVRG(vrg, x0, 1/3, Int(ceil(n/2)), mt)
+	stagelen = Int(ceil(n/2))
+	alg = SVRG(vrg, x0, 1/3, stagelen, mt)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -198,9 +200,9 @@ function SVRG_UniformVRG()
 		)
 
 	# Solve
-	nstages = 100
-	iterperlog = Int(floor(nstages*n/2/10))
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	niter = 100*stagelen
+	nlogs = 10
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 function SVRG_UniformVRG_Importance()
@@ -220,7 +222,8 @@ function SVRG_UniformVRG_Importance()
 	w = .1 .+ rand(mt,n)
 	
 	# Create Algorithm
-	alg = SVRG(vrg, x0, 1/3, Int(ceil(n/2)), mt, weights=w)
+	stagelen = Int(ceil(n/2))
+	alg = SVRG(vrg, x0, 1/3, stagelen, mt, weights=w)
 
 	# Create Loggers
 	fprog(x,y) = norm(x - x_star)
@@ -231,9 +234,9 @@ function SVRG_UniformVRG_Importance()
 		)
 
 	# Solve
-	nstages = 100
-	iterperlog = Int(floor(nstages*n/2/10))
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	niter = 100*stagelen
+	nlogs = 10
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 
@@ -264,20 +267,20 @@ function LSVRG_VRGradient()
 
 	# Setup iterations counts
 	q = 10/n # Expected update frequency
-	nstages = 1000/q
-	iterperlog = Int(floor(nstages/10))
+	niter = 1000/q
+	nlogs = 10
 
 	# Create Algorithm and solve
 	alg = LSVRG(vrg, x0, 1/3, q, mt)
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 
 	# Solve again for smaller expected update frequency
 	q = .1/n
-	nstages = 100/q
-	iterperlog = Int(floor(nstages/10))
+	niter = 100/q
+	nlogs = 10
 
 	alg = LSVRG(vrg, x0, 1/3, q, mt)
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 function LSVRG_UniformVRG_Importance()
@@ -307,20 +310,20 @@ function LSVRG_UniformVRG_Importance()
 
 	# Setup iterations counts
 	q = 10/n # Expected update frequency
-	nstages = 1000/q
-	iterperlog = Int(floor(nstages/10))
+	niter = 1000/q
+	nlogs = 10
 
 	# Create Algorithm and solve
 	alg = LSVRG(vrg, x0, 1/3, q, mt, weights=w)
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 
 	# Solve again for smaller expected update frequency
 	q = .1/n
-	nstages = 100/q
-	iterperlog = Int(floor(nstages/10))
+	niter = 100/q
+	nlogs = 10
 
 	alg = LSVRG(vrg, x0, 1/3, q, mt, weights=w)
-	solve_and_test(alg, nstages, loggers, iterperlog, x_star)
+	solve_and_test(alg, niter, loggers, nlogs, x_star)
 end
 
 ################################################################################
