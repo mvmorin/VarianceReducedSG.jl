@@ -80,8 +80,8 @@ struct StoreFuncVal{F,V,VI<:AbstractArray{Int}} <: AbstractLogger
 	fvals::V
 	iterations::VI
 	idx::Vector{Int}
-	StoreFuncVal(f::F, fv::V, i::VI, s::VI) where {F,V,VI} =
-		new{F,V,VI}(f,fv,i,s,[1])
+	StoreFuncVal(f::F, fv::V, i::VI) where {F,V,VI} =
+		new{F,V,VI}(f,fv,i,[1])
 end
 initialize!(l::StoreFuncVal) = l.idx[1] = 1
 function log!(l::StoreFuncVal, alg, iter, stage)
