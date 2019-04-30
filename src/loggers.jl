@@ -18,17 +18,10 @@ abstract type AbstractLogger end
 initialize!(l::AbstractLogger) = nothing
 finalize!(l::AbstractLogger) = nothing
 
-stagelog!(l::AbstractLogger) = nothing
-stagelog!(l::AbstractLogger, stage) = stagelog!(l::AbstractLogger)
-stagelog!(l::AbstractLogger, iter, stage) = stagelog!(l::AbstractLogger, stage)
-stagelog!(l::AbstractLogger, alg, iter, stage) =
-	stagelog!(l::AbstractLogger, iter, stage)
-
 log!(l::AbstractLogger) = nothing
 log!(l::AbstractLogger, iter) = log!(l::AbstractLogger)
 log!(l::AbstractLogger, iter, stage) = log!(l::AbstractLogger, iter)
 log!(l::AbstractLogger, alg, iter, stage) = log!(l::AbstractLogger, iter, stage)
-
 
 
 # Make it possible to package multiple loggers in a tuple.
@@ -36,9 +29,6 @@ Loggers = NTuple{N,AbstractLogger} where N
 
 initialize!(tl::Loggers) = unrolled_foreach(initialize!, tl)
 finalize!(tl::Loggers) = unrolled_foreach(finalize!, tl)
-
-stagelog!(tl::Loggers, alg, iter, stage) =
-	unrolled_foreach(l -> stagelog!(l, alg, stage), tl)
 
 log!(tl::Loggers, alg, iter, stage) =
 	unrolled_foreach(l -> log!(l, alg, iter, stage), tl)
@@ -89,7 +79,6 @@ struct StoreFuncVal{F,V,VI<:AbstractArray{Int}} <: AbstractLogger
 	f::F
 	fvals::V
 	iterations::VI
-	stages::VI
 	idx::Vector{Int}
 	StoreFuncVal(f::F, fv::V, i::VI, s::VI) where {F,V,VI} =
 		new{F,V,VI}(f,fv,i,s,[1])
@@ -102,7 +91,6 @@ function log!(l::StoreFuncVal, alg, iter, stage)
 
 	l.fvals[i] = l.f(primiterates(alg), dualiterates(alg))
 	l.iterations[i] = iter
-	l.stages[i] = stage
 	l.idx[1] += 1
 end
 function finalize!(l::StoreFuncVal)
@@ -110,11 +98,9 @@ function finalize!(l::StoreFuncVal)
 	last = l.idx[1]
 
 	fval = zero(eltype(l.fvals))
-	iter = 0
-	stage = 0
+	iter = zero(eltype(l.iterations))
 	for i = last:length(l.fvals)
 		l.fvals[i] = fval
 		l.iterations[i] = iter
-		l.stages[i] = stage
 	end
 end
