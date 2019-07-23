@@ -1,4 +1,4 @@
-export SAGA, SVRG, LSVRG
+export SAGA, SVRG, LSVRG, SVAG, SAG
 
 export primiterates, dualiterates
 
@@ -59,44 +59,70 @@ exp_stagelen(alg::VRAlgorithm) = nothing
 
 ##############################
 # SAGA
-struct SAGA{X,VRG,PF,T,S} <: VRAlgorithm
+function SAGA(vrg, x0, stepsize, rng; weights=nothing, prox_f=IndFree())
+	innoweight = nfunc(vrg)
+	SVAG(
+		vrg, x0, stepsize, innoweight, rng, weights=weights, prox_f=prox_f)
+end
+
+
+
+##############################
+# SAG
+function SAG(vrg, x0, stepsize, rng; weights=nothing, prox_f=IndFree())
+	innoweight = 1
+	SVAG(
+		vrg, x0, stepsize, innoweight, rng, weights=weights, prox_f=prox_f)
+end
+
+
+
+##############################
+# SVAG
+struct SVAG{X,VRG,PF,T,S} <: VRAlgorithm
 	x::X
 	x_tmp::X
 	x0::X
 	vrg::VRG
 	prox_f::PF
 	stepsize::T
+	innoweight::T
 	sampling::S
 
-	function SAGA(vrg, prox_f, x0, stepsize, sampling)
+	function SVAG(vrg, prox_f, x0, stepsize, innoweight, sampling)
 		x = similar(x0)
 		x_tmp = similar(x0)
 		X,VRG,PF,T,S = typeof.((x,vrg,prox_f,stepsize,sampling))
-		new{X,VRG,PF,T,S}(x,x_tmp,x0,vrg,prox_f,stepsize,sampling)
+		new{X,VRG,PF,T,S}(x,x_tmp,x0,vrg,prox_f,stepsize,innoweight,sampling)
 	end
 end
 # Constructors
-function SAGA(vrg, x0, stepsize, rng; weights=nothing, prox_f=IndFree())
+function SVAG(
+		vrg, x0, stepsize, innoweight, rng; weights=nothing, prox_f=IndFree())
+
 	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
 										WeightedSampling(rng, weights)
-	SAGA(vrg, prox_f, x0, stepsize, sampling)
+	SVAG(vrg, prox_f, x0, stepsize, innoweight, sampling)
 end
 # Interface
-function initialize!(alg::SAGA)
+function initialize!(alg::SVAG)
 	reset!(alg.vrg)
 	alg.x .= alg.x0
 end
-function update!(alg::SAGA, iter, stage)
+function update!(alg::SVAG, iter, stage)
 	(i,p) = alg.sampling()
-	innv_weight = 1/(nfunc(alg.vrg)*p)
-	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+
+	n = nfunc(alg.vrg)
+	sample_innoweight = alg.innoweight/(n*n*p)
+	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, sample_innoweight)
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
-stageupdate!(alg::SAGA) = 1
-primiterates(alg::SAGA) = alg.x
-dualiterates(alg::SAGA) = alg.vrg
-exp_stagelen(alg::SAGA) = 1
+stageupdate!(alg::SVAG) = 1
+primiterates(alg::SVAG) = alg.x
+dualiterates(alg::SVAG) = alg.vrg
+exp_stagelen(alg::SVAG) = 1
+
 
 
 ##############################

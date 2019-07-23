@@ -40,9 +40,9 @@ end
 
 
 ################################################################################
-# SAGA
+# SAGA, SAG, SVAG
 ################################################################################
-function SAGA_test()
+function SAGlike_test()
 	N = 100
 	n = 1000
 	mt = MersenneTwister(123)
@@ -61,7 +61,13 @@ function SAGA_test()
 	algs = [
 		(SAGA(vrg, x0, 1/3, mt), "SAGA - VRGradient"),
 		(SAGA(vrg_lin, x0, 1/3, mt), "SAGA - LinearVRG"),
-		(SAGA(vrg, x0, 1/3, mt, weights=.1 .+rand(mt,n)), "SAGA - LinearVRG - Importance"),
+		(SAGA(vrg_lin, x0, 1/3, mt, weights=.1 .+rand(mt,n)), "SAGA - LinearVRG - Importance"),
+		(SAG(vrg, x0, 1/3, mt), "SAG - VRGradient"),
+		(SAG(vrg_lin, x0, 1/3, mt), "SAG - LinearVRG"),
+		(SAG(vrg, x0, 1/3, mt, weights=.1 .+rand(mt,n)), "SAG - VRGradient - Importance"),
+		(SVAG(vrg, x0, 1/3, n/10, mt), "SVAG - VRGradient"),
+		(SVAG(vrg_lin, x0, 1/3, n/10, mt), "SVAG - LinearVRG"),
+		(SVAG(vrg_lin, x0, 1/3, n/10, mt, weights=.1 .+rand(mt,n)), "SVAG - LinearVRG - Importance"),
 		]
 
 	for (alg, descr) in algs
@@ -198,15 +204,9 @@ end
 ################################################################################
 # Testsets
 ################################################################################
-@testset "SAGA - Least Squares" begin
-	SAGA_test()
-end
-
-@testset "SVRG - Least Squares" begin
+@testset "Least Squares" begin
+	SAGlike_test()
 	SVRG_test()
-end
-
-@testset "Loopless SVRG - Least Squares" begin
 	LSVRG_test()
 end
 

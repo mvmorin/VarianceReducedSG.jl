@@ -72,6 +72,23 @@ end
 	@test isapprox(primiterates(alg), x_star)
 	
 
+	println("Prox-SAG - LinearVRG - Importance")
+	niter = n*100
+	nlogs = 10
+	alg = SAG(
+		vrg_lin, randn(mt,N), 1/4, mt, prox_f=reg, weights=0.5.+rand(mt,n))
+	iterate!(alg, niter, (progress, ShowNewLine()), nlogs)
+	@test isapprox(primiterates(alg), x_star)
+
+
+	println("Prox-SVAG - LinearVRG")
+	niter = n*100
+	nlogs = 10
+	alg = SVAG(vrg_lin, randn(mt,N), 1/4, n/20, mt, prox_f=reg)
+	iterate!(alg, niter, (progress, ShowNewLine()), nlogs)
+	@test isapprox(primiterates(alg), x_star)
+
+
 	println("Prox-SVRG - UniformVRG")
 	stagelen = n/10
 	niter = 50*n
