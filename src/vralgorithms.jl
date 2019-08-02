@@ -1,4 +1,4 @@
-export SAGA, SVRG, LSVRG, SVAG, SAG
+export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA
 
 export primiterates, dualiterates
 
@@ -205,9 +205,12 @@ function initialize!(alg::LSVRG)
 end
 function update!(alg::LSVRG, iter, stage)
 	(i,p) = alg.sampling()
+
 	innv_weight = 1/(nfunc(alg.vrg)*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+
 	rand(alg.rng) < alg.q && grad_store!(alg.vrg, alg.x)
+
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
@@ -215,3 +218,59 @@ stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x
 dualiterates(alg::LSVRG) = alg.vrg
 exp_stagelen(alg::LSVRG) = 1
+
+
+##############################
+# qSAGA with or without replacement in the dual update
+struct QSAGA{X,VRG,PF,T,RNG,S} <:VRAlgorithm
+	x::X
+	x_tmp::X
+	x0::X
+	vrg::VRG
+	prox_f::PF
+	stepsize::T
+	dualindex::Vector{Int}
+	replace::Bool
+	rng::RNG
+	sampling::S
+
+	function QSAGA(vrg,prox_f,x0,stepsize,q,replace,rng,sampling)
+		x = similar(x0)
+		x_tmp = similar(x0)
+		dualindex = Vector{Int}(undef,q)
+
+		X,VRG,PF,T,RNG,S = typeof.((x,vrg,prox_f,stepsize,rng,sampling))
+		new{X,VRG,PF,T,RNG,S}(
+			x,x_tmp,x0,vrg,prox_f,stepsize,dualindex,replace,rng,sampling)
+	end
+end
+# Constructors
+function QSAGA(
+		vrg, x0, stepsize, q, rng;
+		weights=nothing, prox_f=IndFree(), replace=true)
+	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+										WeightedSampling(rng, weights)
+	QSAGA(vrg, prox_f, x0, stepsize, q, replace, rng, sampling)
+end
+# Interface
+function initialize!(alg::QSAGA)
+	reset!(alg.vrg)
+	alg.x .= alg.x0
+end
+function update!(alg::QSAGA, iter, stage)
+	n = nfunc(alg.vrg)
+	(i,p) = alg.sampling()
+
+	innv_weight = 1/(n*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+
+	sample!(alg.rng, 1:n, alg.dualindex, replace=alg.replace)
+	grad_store!(alg.vrg, alg.x, alg.dualindex)
+
+	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
+end
+stageupdate!(alg::QSAGA) = 1
+primiterates(alg::QSAGA) = alg.x
+dualiterates(alg::QSAGA) = alg.vrg
+exp_stagelen(alg::QSAGA) = 1

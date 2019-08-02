@@ -49,7 +49,6 @@ end
 	
 
 	x_star = primiterates(alg)
-	println(x_star)
 	fval(x,y) = norm(x - x_star)
 	progress = ShowFuncVal(fval, "|| x - x^*||")
 
@@ -98,12 +97,32 @@ end
 	@test isapprox(primiterates(alg), x_star)
 	
 
-	println("Prox-LSVRG - UniformVRG")
+	println("Prox-LSVRG - UniformVRG - Importance")
 	q = 10/n
 	niter = n*50
 	nlogs = 10
 	alg = LSVRG(
 		vrg_uni, randn(mt,N), 1/8, q, mt, prox_f=reg,weights=0.5.+rand(mt,n))
+	iterate!(alg, niter, (progress, ShowNewLine()), nlogs)
+	@test isapprox(primiterates(alg), x_star)
+
+
+	println("Prox-QSAGA - LinearVRG - q = 10")
+	q = 10
+	niter = n*50
+	nlogs = 10
+	alg = QSAGA(
+		vrg_lin, randn(mt,N), 1/8, q, mt, prox_f=reg)
+	iterate!(alg, niter, (progress, ShowNewLine()), nlogs)
+	@test isapprox(primiterates(alg), x_star)
+
+
+	println("Prox-QSAGA - VRGadient - q = 10 - Without replacement")
+	q = 10
+	niter = n*50
+	nlogs = 10
+	alg = QSAGA(
+		vrg, randn(mt,N), 1/8, q, mt, prox_f=reg, replace=false)
 	iterate!(alg, niter, (progress, ShowNewLine()), nlogs)
 	@test isapprox(primiterates(alg), x_star)
 end

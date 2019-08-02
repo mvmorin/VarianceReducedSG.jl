@@ -5,6 +5,7 @@ using ProximalOperators
 using SparseArrays
 using Unrolled
 using Printf
+using StatsBase
 
 include("gradientstorage.jl")
 include("vralgorithms.jl")
