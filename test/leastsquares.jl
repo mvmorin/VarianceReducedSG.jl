@@ -154,7 +154,7 @@ function LSVRG_test()
 	vrg = VRGradient(f!, zeros(N), n)
 	vrg_lin = LinearVRG(f, data, zeros(N))
 	vrg_uni = UniformVRG(f!, zeros(N), n)
-	
+
 	q = 10/n # Expected update frequency
 	algs = [
 		(LSVRG(vrg, x0, 1/3, q, mt), "LSVRG - VRGradient"),
@@ -197,6 +197,54 @@ function LSVRG_test()
 	println("LSVRG - Low update frequency")
 	alg = LSVRG(vrg, x0, 1/3, q, mt)
 	solve_and_test(alg, niter, loggers, nlogs, x_star)
+end
+
+
+
+################################################################################
+# Incoherent Loopless SVRG
+################################################################################
+function ILSVRG_test()
+	N = 100
+	n = 1000
+	mt = MersenneTwister(123)
+
+	data, b, x0, x_star = setup_ls(N,n,mt)
+
+	# Gradients of square cost
+	f(x,i) = sqgrad(x - b[i])
+	f!(y,x,i) = (y .= data[i].*sqgrad(dot(data[i],x) - b[i]))
+
+	# VR gradient
+	vrg = VRGradient(f!, zeros(N), n)
+	vrg_lin = LinearVRG(f, data, zeros(N))
+	vrg_uni = UniformVRG(f!, zeros(N), n)
+
+	q = 10/n # Expected update frequency
+	algs = [
+		(ILSVRG(vrg, x0, 1/3, q, mt), "ILSVRG - VRGradient"),
+		(ILSVRG(vrg_lin, x0, 1/3, q/10, mt), "ILSVRG - LinearVRG"),
+		(ILSVRG(vrg, x0, 1/3, 2*q, mt, weights=.1 .+ rand(mt,n)), "ILSVRG - VRGradient - Importance"),
+		]
+
+	for (alg, descr) in algs
+		# Create Loggers
+		fprog(x,y) = norm(x - x_star)
+		loggers = (
+			ShowIterations(),
+			ShowFuncVal(fprog, "|| x - x^*||"),
+			ShowNewLine()
+			)
+
+		println(descr)
+
+		# Setup iterations counts
+		niter = 1000/q
+		nlogs = 10
+
+		# Create Algorithm and solve
+		solve_and_test(alg, niter, loggers, nlogs, x_star)
+	end
 end
 
 
@@ -271,6 +319,7 @@ end
 	SAGlike_test()
 	SVRG_test()
 	LSVRG_test()
+	ILSVRG_test()
 	QSAGA_test()
 end
 

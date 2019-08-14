@@ -1,4 +1,4 @@
-export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA
+export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA, ILSVRG
 
 export primiterates, dualiterates
 
@@ -218,6 +218,59 @@ stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x
 dualiterates(alg::LSVRG) = alg.vrg
 exp_stagelen(alg::LSVRG) = 1
+
+
+
+##############################
+# Incoherent Loopless SVRG
+struct ILSVRG{X,VRG,PF,T,Q,RNG,S} <:VRAlgorithm
+	x::X
+	x_tmp::X
+	x0::X
+	vrg::VRG
+	prox_f::PF
+	stepsize::T
+	q::Q
+	rng::RNG
+	sampling::S
+
+	function ILSVRG(vrg,prox_f,x0,stepsize,q,rng,sampling)
+		x = similar(x0)
+		x_tmp = similar(x0)
+		X,VRG,PF,T,Q,RNG,S = typeof.((x,vrg,prox_f,stepsize,q,rng,sampling))
+		new{X,VRG,PF,T,Q,RNG,S}(x,x_tmp,x0,vrg,prox_f,stepsize,q,rng,sampling)
+	end
+end
+# Constructors
+function ILSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
+	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+										WeightedSampling(rng, weights)
+	LSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
+end
+# Interface
+function initialize!(alg::ILSVRG)
+	reset!(alg.vrg)
+	alg.x .= alg.x0
+end
+function update!(alg::ILSVRG, iter, stage)
+	(i,p) = alg.sampling()
+	n = nfunc(alg.vrg)
+
+	innv_weight = 1/(n*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+
+	for j = 1:n
+		rand(alg.rng) < alg.q && grad_store!(alg.vrg, alg.x, j)
+	end
+
+	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
+end
+stageupdate!(alg::ILSVRG) = 1
+primiterates(alg::ILSVRG) = alg.x
+dualiterates(alg::ILSVRG) = alg.vrg
+exp_stagelen(alg::ILSVRG) = 1
+
 
 
 ##############################
