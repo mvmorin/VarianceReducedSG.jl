@@ -107,12 +107,12 @@ end
 	@test isapprox(primiterates(alg), x_star)
 
 
-	println("Prox-ILSVRG - UniformVRG - Importance")
+	println("Prox-ILSVRG - VRGradient - Importance")
 	q = 10/n
 	niter = n*50
 	nlogs = 10
 	alg = ILSVRG(
-		vrg_uni, randn(mt,N), 1/8, q, mt, prox_f=reg,weights=0.5.+rand(mt,n))
+		vrg, randn(mt,N), 1/8, q, mt, prox_f=reg,weights=0.5.+rand(mt,n))
 	iterate!(alg, niter, (progress, ShowNewLine()), nlogs)
 	@test isapprox(primiterates(alg), x_star)
 

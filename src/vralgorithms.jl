@@ -245,7 +245,7 @@ end
 function ILSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
 	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
 										WeightedSampling(rng, weights)
-	LSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
+	ILSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
 end
 # Interface
 function initialize!(alg::ILSVRG)
