@@ -34,10 +34,11 @@ struct VRGradient{T<:Real, Vg<:AbstractArray{T}, GF, N} <: AbstractVRGradient{N}
 	y::Vector{Vg}	
 	buf::Vg
 
-	function VRGradient(grad, buf, n)
+	function VRGradient(grad!, buf, n)
 		ysum = similar(buf)
 		y = [similar(buf) for _ = 1:n]
-		vrg = new{eltype(buf), typeof(buf), typeof(grad), n}(grad, ysum, y, buf)
+		vrg =
+			new{eltype(buf), typeof(buf), typeof(grad!), n}(grad!, ysum, y, buf)
 		reset!(vrg)
 		return vrg
 	end

@@ -1,9 +1,11 @@
 export ShowIterations,
 	ShowNewLine,
 	ShowTime,
-	ShowFuncVal,
 	NoLog,
-	StoreFuncVal
+	CacheFuncVal,
+	StoreFuncVal,
+	ShowFuncVal,
+	StoreLogIterations
 
 export initialize!,
 	finalize!,
@@ -66,6 +68,17 @@ log!(l::ShowTime) = @printf("Time: %5.f, ", time() - l.t0[1])
 
 
 ################################################################################
+struct CacheFuncVal{F,T} <: AbstractLogger
+	f::F
+	val::Array{T,1}
+	CacheFuncVal(f::F,T=Float64) where {F} = new{F,T}(f,zeros(T,1))
+end
+log!(l::CacheFuncVal,alg,iter,stage) =
+	l.val[1] = l.f(primiterates(alg),dualiterates(alg))
+(l::CacheFuncVal)(x,y) = l.val[1]
+
+
+################################################################################
 struct ShowFuncVal{F,L} <: AbstractLogger
 	f::F
 	label::L
@@ -75,22 +88,17 @@ log!(l::ShowFuncVal, alg, iter, stage) =
 
 
 ################################################################################
-struct StoreFuncVal{F,V,VI<:AbstractArray{Int}} <: AbstractLogger
+struct StoreFuncVal{F,V} <: AbstractLogger
 	f::F
 	fvals::V
-	iterations::VI
 	idx::Vector{Int}
-	StoreFuncVal(f::F, fv::V, i::VI) where {F,V,VI} =
-		new{F,V,VI}(f,fv,i,[1])
+	StoreFuncVal(f::F, fv::V) where {F,V} = new{F,V}(f,fv,[1])
 end
 initialize!(l::StoreFuncVal) = l.idx[1] = 1
 function log!(l::StoreFuncVal, alg, iter, stage)
 	i = l.idx[1]
-
 	i > length(l.fvals) && return
-
 	l.fvals[i] = l.f(primiterates(alg), dualiterates(alg))
-	l.iterations[i] = iter
 	l.idx[1] += 1
 end
 function finalize!(l::StoreFuncVal)
@@ -98,9 +106,30 @@ function finalize!(l::StoreFuncVal)
 	last = l.idx[1]
 
 	fval = zero(eltype(l.fvals))
-	iter = zero(eltype(l.iterations))
 	for i = last:length(l.fvals)
 		l.fvals[i] = fval
+	end
+end
+
+################################################################################
+struct StoreLogIterations{VI<:AbstractArray{Int}} <: AbstractLogger
+	iterations::VI
+	idx::Vector{Int}
+	StoreLogIterations(iterations::VI) where {VI} = new{VI}(iterations,[1])
+end
+initialize!(l::StoreLogIterations) = l.idx[1] = 1
+function log!(l::StoreLogIterations, alg, iter, stage)
+	i = l.idx[1]
+	i > length(l.iterations) && return
+	l.iterations[i] = iter
+	l.idx[1] += 1
+end
+function finalize!(l::StoreLogIterations)
+	# Zero out unused space
+	last = l.idx[1]
+
+	iter = zero(eltype(l.iterations))
+	for i = last:length(l.iterations)
 		l.iterations[i] = iter
 	end
 end
