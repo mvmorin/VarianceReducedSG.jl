@@ -24,10 +24,11 @@ function test_loggers()
 	f2_cache = CacheFuncVal(f2,Int)
 
 	nlogs = 23
-	niter = 23
-	logiters = zeros(Int,nlogs)
-	f1_vals = zeros(nlogs)
-	f2_vals = zeros(Int,nlogs)
+	niter = 97
+	extralogs = 10
+	logiters = zeros(Int,nlogs + extralogs)
+	f1_vals = zeros(nlogs + extralogs)
+	f2_vals = zeros(Int,nlogs + extralogs)
 
 	loggers = (
 		ShowNewLine("Begining of log:"),
@@ -48,9 +49,13 @@ function test_loggers()
 	iterate!(alg, niter, loggers, nlogs, warmstart=true)
 
 	loginterval = Int(ceil(niter/nlogs))
-	@test all(logiters .== (0:loginterval:niter)[1:nlogs])
-	@test all(isapprox(f1_vals, x0 .+ (0:loginterval:niter)[1:nlogs]))
-	@test all(f2_vals .== n)
+	correct_logiters = range(0,step=loginterval,length=nlogs)
+	@test all(logiters[1:nlogs] .== correct_logiters)
+	@test all(logiters[(nlogs+1):end] .== 0)
+	@test all(isapprox.(f1_vals[1:nlogs], x0 .+ correct_logiters))
+	@test all(isapprox.(f1_vals[nlogs+1:end], 0.0))
+	@test all(f2_vals[1:nlogs] .== n)
+	@test all(f2_vals[nlogs+1:end] .== 0)
 end
 
 test_loggers()

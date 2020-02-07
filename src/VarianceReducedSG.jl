@@ -22,7 +22,7 @@ function iterate!(
 		alg::VRAlgorithm, niter, logger=NoLog(), nlogs=1; warmstart=false)
 
 	iterperlog = Int(ceil(niter/nlogs))
-	nstages = Int(ceil(nlogs*iterperlog/exp_stagelen(alg)))
+	nstages = Int(ceil(max(1,nlogs-1)*iterperlog/expectedstagelen(alg)))
 
 	initialize!(logger)
 	!warmstart && initialize!(alg)

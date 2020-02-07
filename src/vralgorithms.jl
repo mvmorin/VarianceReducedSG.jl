@@ -54,7 +54,7 @@ initialize!(alg::VRAlgorithm) = nothing
 primiterates(alg::VRAlgorithm) = nothing
 dualiterates(alg::VRAlgorithm) = nothing
 
-exp_stagelen(alg::VRAlgorithm) = nothing
+expectedstagelen(alg::VRAlgorithm) = nothing
 
 
 ##############################
@@ -121,7 +121,7 @@ end
 stageupdate!(alg::SVAG) = 1
 primiterates(alg::SVAG) = alg.x
 dualiterates(alg::SVAG) = alg.vrg
-exp_stagelen(alg::SVAG) = 1
+expectedstagelen(alg::SVAG) = 1
 
 
 
@@ -168,7 +168,7 @@ function stageupdate!(alg::SVRG)
 end
 primiterates(alg::SVRG) = alg.x
 dualiterates(alg::SVRG) = alg.vrg
-exp_stagelen(alg::SVRG) = alg.stagelen
+expectedstagelen(alg::SVRG) = alg.stagelen
 
 
 
@@ -217,7 +217,7 @@ end
 stageupdate!(alg::LSVRG) = 1
 primiterates(alg::LSVRG) = alg.x
 dualiterates(alg::LSVRG) = alg.vrg
-exp_stagelen(alg::LSVRG) = 1
+expectedstagelen(alg::LSVRG) = 1
 
 
 
@@ -269,7 +269,7 @@ end
 stageupdate!(alg::ILSVRG) = 1
 primiterates(alg::ILSVRG) = alg.x
 dualiterates(alg::ILSVRG) = alg.vrg
-exp_stagelen(alg::ILSVRG) = 1
+expectedstagelen(alg::ILSVRG) = 1
 
 
 
@@ -326,4 +326,4 @@ end
 stageupdate!(alg::QSAGA) = 1
 primiterates(alg::QSAGA) = alg.x
 dualiterates(alg::QSAGA) = alg.vrg
-exp_stagelen(alg::QSAGA) = 1
+expectedstagelen(alg::QSAGA) = 1
