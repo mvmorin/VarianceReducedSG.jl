@@ -29,6 +29,7 @@ function test_loggers()
 	logiters = zeros(Int,nlogs + extralogs)
 	f1_vals = zeros(nlogs + extralogs)
 	f2_vals = zeros(Int,nlogs + extralogs)
+	x0_vals = zeros(Float64,nlogs + extralogs)
 
 	loggers = (
 		ShowNewLine("Begining of log:"),
@@ -40,6 +41,9 @@ function test_loggers()
 		f2_cache,
 		ShowFuncVal(f1_cache, "Iterate"),
 		ShowFuncVal(f2_cache, "Number of functions"),
+		ShowAlgState(alg->alg.stepsize, "Stepsize"),
+		ShowAlgState(alg->alg.x0, "Initial point"),
+		StoreAlgState(alg->alg.x0[], x0_vals),
 		ShowNewLine("\nEnd of log.\n"),
 		StoreFuncVal(f1_cache, f1_vals),
 		StoreFuncVal(f2_cache, f2_vals),
@@ -56,6 +60,8 @@ function test_loggers()
 	@test all(isapprox.(f1_vals[nlogs+1:end], 0.0))
 	@test all(f2_vals[1:nlogs] .== n)
 	@test all(f2_vals[nlogs+1:end] .== 0)
+	@test all(x0_vals[1:nlogs] .== x0)
+	@test all(x0_vals[nlogs+1:end] .== 0)
 end
 
 test_loggers()

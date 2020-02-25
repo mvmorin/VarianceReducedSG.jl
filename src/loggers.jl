@@ -5,7 +5,9 @@ export ShowIterations,
 	CacheFuncVal,
 	StoreFuncVal,
 	ShowFuncVal,
-	StoreLogIterations
+	StoreLogIterations,
+	ShowAlgState,
+	StoreAlgState
 
 export initialize!,
 	finalize!,
@@ -88,48 +90,69 @@ log!(l::ShowFuncVal, alg, iter, stage) =
 
 
 ################################################################################
-struct StoreFuncVal{F,V} <: AbstractLogger
+struct ShowAlgState{F,L} <: AbstractLogger
 	f::F
-	fvals::V
-	idx::Base.RefValue{Int}
-	StoreFuncVal(f::F, fv::V) where {F,V} = new{F,V}(f,fv,Ref(1))
+	label::L
 end
-initialize!(l::StoreFuncVal) = l.idx[] = 1
-function log!(l::StoreFuncVal, alg, iter, stage)
-	i = l.idx[]
-	i > length(l.fvals) && return
-	l.fvals[i] = l.f(primiterates(alg), dualiterates(alg))
-	l.idx[] += 1
-end
-function finalize!(l::StoreFuncVal)
-	# Zero out unused space
-	last = l.idx[]
+log!(l::ShowAlgState, alg, iter, stage) = print(l.label, ": ", l.f(alg), ", ")
 
-	fval = zero(eltype(l.fvals))
-	for i = last:length(l.fvals)
-		l.fvals[i] = fval
+
+################################################################################
+struct LogStorage{V}
+	vals::V
+	idx::Base.RefValue{Int}
+	LogStorage(v::V) where {V} = new{V}(v,Ref(1))
+end
+initialize!(ls::LogStorage) = ls.idx[] = 1
+function store!(ls::LogStorage, val)
+	i = ls.idx[]
+	i > length(ls.vals) && return
+	ls.vals[i] = val
+	ls.idx[] += 1
+end
+function finalize!(ls::LogStorage)
+	# Zero out unused space
+	last = ls.idx[]
+	padding = zero(eltype(ls.vals))
+	for i = last:length(ls.vals)
+		ls.vals[i] = padding
 	end
 end
+
+
+################################################################################
+struct StoreFuncVal{F,V} <: AbstractLogger
+	f::F
+	ls::LogStorage{V}
+	StoreFuncVal(f::F, fv::V) where {F,V} = new{F,V}(f,LogStorage(fv))
+end
+initialize!(l::StoreFuncVal) = initialize!(l.ls)
+function log!(l::StoreFuncVal, alg, iter, stage)
+	val = l.f(primiterates(alg), dualiterates(alg))
+	store!(l.ls, val)
+end
+finalize!(l::StoreFuncVal) = finalize!(l.ls)
+
 
 ################################################################################
 struct StoreLogIterations{VI<:AbstractArray{Int}} <: AbstractLogger
-	iterations::VI
-	idx::Base.RefValue{Int}
-	StoreLogIterations(iterations::VI) where {VI} = new{VI}(iterations,Ref(1))
+	ls::LogStorage{VI}
+	StoreLogIterations(iters::VI) where {VI} = new{VI}(LogStorage(iters))
 end
-initialize!(l::StoreLogIterations) = l.idx[] = 1
-function log!(l::StoreLogIterations, alg, iter, stage)
-	i = l.idx[]
-	i > length(l.iterations) && return
-	l.iterations[i] = iter
-	l.idx[] += 1
-end
-function finalize!(l::StoreLogIterations)
-	# Zero out unused space
-	last = l.idx[]
+initialize!(l::StoreLogIterations) = initialize!(l.ls)
+log!(l::StoreLogIterations, alg, iter, stage) = store!(l.ls, iter)
+finalize!(l::StoreLogIterations) = finalize!(l.ls)
 
-	iter = zero(eltype(l.iterations))
-	for i = last:length(l.iterations)
-		l.iterations[i] = iter
-	end
+
+################################################################################
+struct StoreAlgState{F,V} <: AbstractLogger
+	f::F
+	ls::LogStorage{V}
+	StoreAlgState(f::F, fv::V) where {F,V} = new{F,V}(f,LogStorage(fv))
 end
+initialize!(l::StoreAlgState) = initialize!(l.ls)
+function log!(l::StoreAlgState, alg, iter, stage)
+	val = l.f(alg)
+	store!(l.ls, val)
+end
+finalize!(l::StoreAlgState) = finalize!(l.ls)
