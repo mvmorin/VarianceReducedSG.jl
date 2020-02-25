@@ -1,4 +1,4 @@
-export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA, ILSVRG
+export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA, ILSVRG, ASVAG
 
 export primiterates, dualiterates
 
@@ -122,6 +122,89 @@ stageupdate!(alg::SVAG) = 1
 primiterates(alg::SVAG) = alg.x
 dualiterates(alg::SVAG) = alg.vrg
 expectedstagelen(alg::SVAG) = 1
+
+
+
+##############################
+# Adaptive SVAG
+struct ASVAG{X,VRG,PF,T,S,F} <: VRAlgorithm
+	x::X
+	x_tmp::X
+	x0::X
+	vrg::VRG
+	prox_f::PF
+	stepsize::T
+	innoweight::Base.RefValue{T}
+	biascorr::Base.RefValue{T}
+	decay::T
+	sampling::S
+	stepcorrection::F
+
+	function ASVAG(vrg, prox_f, x0, stepsize, sampling, stepcorrection)
+		x = similar(x0)
+		x_tmp = similar(x0)
+		innoweight = nfunc(vrg)*one(stepsize)
+		biascorr = zero(stepsize)
+		decay = 1/nfunc(vrg)
+
+		X,VRG,PF,T,S,F=typeof.((x,vrg,prox_f,stepsize,sampling,stepcorrection))
+		new{X,VRG,PF,T,S,F}(
+			x,x_tmp,x0,
+			vrg,prox_f,
+			stepsize,Ref(innoweight),Ref(biascorr),decay,
+			sampling,
+			stepcorrection)
+	end
+end
+# Constructors
+function ASVAG(
+		vrg, x0, stepsize, rng;
+		weights=nothing, prox_f=IndFree(), enforce_step=false)
+
+	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+										WeightedSampling(rng, weights)
+	if enforce_step
+		stepcorrection = (n,theta) -> max(
+			2/(2 + abs(n-theta)),
+			2/(2 + (n-theta)*(theta-1)/n*((theta-1)/n-1+sign(theta-1)*sqrt(2)) )
+			)
+	else
+		stepcorrection = (n,theta) -> 1
+	end
+	ASVAG(vrg, prox_f, x0, stepsize, sampling, stepcorrection)
+end
+# Interface
+function initialize!(alg::ASVAG)
+	reset!(alg.vrg)
+	alg.x .= alg.x0
+	alg.innoweight[] = nfunc(alg.vrg)*one(alg.innoweight[])
+	alg.biascorr[] = one(alg.biascorr[])
+end
+function update!(alg::ASVAG, iter, stage)
+	(i,p) = alg.sampling()
+	n = nfunc(alg.vrg)
+
+	# Calc innovation weight and corrected stepsize
+	iw_unbias = alg.innoweight[]/alg.biascorr[]
+	sample_innoweight = iw_unbias/(n*n*p)
+	stepsize_corr = alg.stepsize*alg.stepcorrection(n,iw_unbias)
+
+	# Take VRSG step
+	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, sample_innoweight)
+	alg.x_tmp .= alg.x .- stepsize_corr.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
+
+	# Update innovation weight
+	approx!(alg.x_tmp, alg.vrg)
+	np(v) = (r = norm(v); ifelse(r > eps(), r, one(r)))
+	overlap = n*abs(dot(alg.vrg[i], alg.x_tmp))/np(alg.vrg[i])/np(alg.x_tmp)
+	alg.innoweight[] = overlap + (1 - alg.decay)*alg.innoweight[]
+	alg.biascorr[] = 1 + (1 - alg.decay)*alg.biascorr[]
+end
+stageupdate!(alg::ASVAG) = 1
+primiterates(alg::ASVAG) = alg.x
+dualiterates(alg::ASVAG) = alg.vrg
+expectedstagelen(alg::ASVAG) = 1
 
 
 

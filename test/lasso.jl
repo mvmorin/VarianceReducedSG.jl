@@ -88,6 +88,19 @@ end
 	@test isapprox(primiterates(alg), x_star)
 
 
+	println("Prox-ASVAG - LinearVRG")
+	niter = n*100
+	nlogs = 10
+	alg = ASVAG(vrg_lin, randn(mt,N), 1/4, mt, prox_f=reg)
+	iterate!(alg, niter,
+		(progress,
+			ShowAlgState(a->a.innoweight[]/a.biascorr[], "IW"),
+			ShowNewLine()
+		),
+		nlogs)
+	@test isapprox(primiterates(alg), x_star)
+
+
 	println("Prox-SVRG - UniformVRG")
 	stagelen = n/10
 	niter = 50*n

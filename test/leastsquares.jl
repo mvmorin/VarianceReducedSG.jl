@@ -68,6 +68,10 @@ function SAGlike_test()
 		(SVAG(vrg, x0, 1/3, n/10, mt), "SVAG - VRGradient"),
 		(SVAG(vrg_lin, x0, 1/3, n/10, mt), "SVAG - LinearVRG"),
 		(SVAG(vrg_lin, x0, 1/3, n/10, mt, weights=.1 .+rand(mt,n)), "SVAG - LinearVRG - Importance"),
+		(ASVAG(vrg, x0, 1/3, mt), "ASVAG - VRGradient"),
+		(ASVAG(vrg_lin, x0, 1/3, mt), "ASVAG - LinearVRG"),
+		(ASVAG(vrg_lin, x0, 1/3, mt, weights=.1 .+rand(mt,n)), "ASVAG - LinearVRG - Importance"),
+		(ASVAG(vrg_lin, x0, 1/3, mt, enforce_step=true), "ASVAG - LinearVRG - Theoretical stepsize enforced"),
 		]
 
 	for (alg, descr) in algs
