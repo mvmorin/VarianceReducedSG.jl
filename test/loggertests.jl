@@ -12,7 +12,7 @@ function test_loggers()
 
 	grad!(out,x,i) = out .= -1.0
 	vrg = VRGradient(grad!, [0.0], n)
-	VarianceReducedSG.grad_store!(vrg, x0)
+	VarianceReducedSG.store_from_point!(vrg, x0)
 
 	alg = SAGA(vrg,x0,1.0,MersenneTwister(800))
 	alg.x .= x0

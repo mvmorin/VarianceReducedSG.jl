@@ -60,7 +60,7 @@ expectedstagelen(alg::VRAlgorithm) = nothing
 ##############################
 # SAGA
 function SAGA(vrg, x0, stepsize, rng; weights=nothing, prox_f=IndFree())
-	innoweight = nfunc(vrg)
+	innoweight = length(vrg)
 	SVAG(
 		vrg, x0, stepsize, innoweight, rng, weights=weights, prox_f=prox_f)
 end
@@ -100,7 +100,7 @@ end
 function SVAG(
 		vrg, x0, stepsize, innoweight, rng; weights=nothing, prox_f=IndFree())
 
-	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
 	SVAG(vrg, prox_f, x0, stepsize, innoweight, sampling)
 end
@@ -112,7 +112,7 @@ end
 function update!(alg::SVAG, iter, stage)
 	(i,p) = alg.sampling()
 
-	n = nfunc(alg.vrg)
+	n = length(alg.vrg)
 	sample_innoweight = alg.innoweight/(n*n*p)
 	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, sample_innoweight)
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
@@ -143,9 +143,9 @@ struct ASVAG{X,VRG,PF,T,S,F} <: VRAlgorithm
 	function ASVAG(vrg, prox_f, x0, stepsize, sampling, stepcorrection)
 		x = similar(x0)
 		x_tmp = similar(x0)
-		innoweight = nfunc(vrg)*one(stepsize)
+		innoweight = length(vrg)*one(stepsize)
 		biascorr = zero(stepsize)
-		decay = 1/nfunc(vrg)
+		decay = 1/length(vrg)
 
 		X,VRG,PF,T,S,F=typeof.((x,vrg,prox_f,stepsize,sampling,stepcorrection))
 		new{X,VRG,PF,T,S,F}(
@@ -161,7 +161,7 @@ function ASVAG(
 		vrg, x0, stepsize, rng;
 		weights=nothing, prox_f=IndFree(), enforce_step=false)
 
-	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
 	if enforce_step
 		stepcorrection = (n,theta) -> max(
@@ -177,12 +177,12 @@ end
 function initialize!(alg::ASVAG)
 	reset!(alg.vrg)
 	alg.x .= alg.x0
-	alg.innoweight[] = nfunc(alg.vrg)*one(alg.innoweight[])
+	alg.innoweight[] = length(alg.vrg)*one(alg.innoweight[])
 	alg.biascorr[] = one(alg.biascorr[])
 end
 function update!(alg::ASVAG, iter, stage)
 	(i,p) = alg.sampling()
-	n = nfunc(alg.vrg)
+	n = length(alg.vrg)
 
 	# Calc innovation weight and corrected stepsize
 	iw_unbias = alg.innoweight[]/alg.biascorr[]
@@ -195,7 +195,7 @@ function update!(alg::ASVAG, iter, stage)
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 
 	# Update innovation weight
-	approx!(alg.x_tmp, alg.vrg)
+	grad_approx!(alg.x_tmp, alg.vrg)
 	np(v) = (r = norm(v); ifelse(r > eps(), r, one(r)))
 	overlap = n*abs(dot(alg.vrg[i], alg.x_tmp))/np(alg.vrg[i])/np(alg.x_tmp)
 	alg.innoweight[] = overlap + (1 - alg.decay)*alg.innoweight[]
@@ -229,7 +229,7 @@ struct SVRG{X,VRG,PF,T,I,S} <: VRAlgorithm
 end
 # Constructors
 function SVRG(vrg, x0, stepsize, stagelen, rng;weights=nothing,prox_f=IndFree())
-	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
 	SVRG(vrg, prox_f, x0, stepsize, stagelen, sampling)
 end
@@ -240,13 +240,13 @@ function initialize!(alg::SVRG)
 end
 function update!(alg::SVRG, iter, stage)
 	(i,p) = alg.sampling()
-	innv_weight = 1/(nfunc(alg.vrg)*p)
+	innv_weight = 1/(length(alg.vrg)*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
 function stageupdate!(alg::SVRG)
-	grad_store!(alg.vrg, alg.x)
+	store_from_point!(alg.vrg, alg.x)
 	return alg.stagelen
 end
 primiterates(alg::SVRG) = alg.x
@@ -277,7 +277,7 @@ struct LSVRG{X,VRG,PF,T,Q,RNG,S} <:VRAlgorithm
 end
 # Constructors
 function LSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
-	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
 	LSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
 end
@@ -289,10 +289,10 @@ end
 function update!(alg::LSVRG, iter, stage)
 	(i,p) = alg.sampling()
 
-	innv_weight = 1/(nfunc(alg.vrg)*p)
+	innv_weight = 1/(length(alg.vrg)*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
 
-	rand(alg.rng) < alg.q && grad_store!(alg.vrg, alg.x)
+	rand(alg.rng) < alg.q && store_from_point!(alg.vrg, alg.x)
 
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
@@ -326,7 +326,7 @@ struct ILSVRG{X,VRG,PF,T,Q,RNG,S} <:VRAlgorithm
 end
 # Constructors
 function ILSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
-	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
 	ILSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
 end
@@ -337,13 +337,13 @@ function initialize!(alg::ILSVRG)
 end
 function update!(alg::ILSVRG, iter, stage)
 	(i,p) = alg.sampling()
-	n = nfunc(alg.vrg)
+	n = length(alg.vrg)
 
 	innv_weight = 1/(n*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
 
 	for j = 1:n
-		rand(alg.rng) < alg.q && grad_store!(alg.vrg, alg.x, j)
+		rand(alg.rng) < alg.q && store_from_point!(alg.vrg, alg.x, j)
 	end
 
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
@@ -384,7 +384,7 @@ end
 function QSAGA(
 		vrg, x0, stepsize, q, rng;
 		weights=nothing, prox_f=IndFree(), replace=true)
-	sampling = (weights == nothing) ?	UniformSampling(rng, nfunc(vrg)) :
+	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
 	QSAGA(vrg, prox_f, x0, stepsize, q, replace, rng, sampling)
 end
@@ -394,14 +394,14 @@ function initialize!(alg::QSAGA)
 	alg.x .= alg.x0
 end
 function update!(alg::QSAGA, iter, stage)
-	n = nfunc(alg.vrg)
+	n = length(alg.vrg)
 	(i,p) = alg.sampling()
 
 	innv_weight = 1/(n*p)
 	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
 
 	sample!(alg.rng, 1:n, alg.dualindex, replace=alg.replace)
-	grad_store!(alg.vrg, alg.x, alg.dualindex)
+	store_from_point!(alg.vrg, alg.x, alg.dualindex)
 
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
