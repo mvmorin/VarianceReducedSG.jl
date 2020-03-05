@@ -94,7 +94,7 @@ end
 	alg = ASVAG(vrg_lin, randn(mt,N), 1/4, mt, prox_f=reg)
 	iterate!(alg, niter,
 		(progress,
-			ShowAlgState(a->a.innoweight[]/a.biascorr[], "IW"),
+			ShowAlgState(a->a.innoweight[], "IW"),
 			ShowNewLine()
 		),
 		nlogs)

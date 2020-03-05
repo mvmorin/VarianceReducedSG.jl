@@ -88,21 +88,22 @@ struct SVAG{X,VRG,PF,T,S} <: VRAlgorithm
 	stepsize::T
 	innoweight::T
 	sampling::S
-
-	function SVAG(vrg, prox_f, x0, stepsize, innoweight, sampling)
-		x = similar(x0)
-		x_tmp = similar(x0)
-		X,VRG,PF,T,S = typeof.((x,vrg,prox_f,stepsize,sampling))
-		new{X,VRG,PF,T,S}(x,x_tmp,x0,vrg,prox_f,stepsize,innoweight,sampling)
-	end
 end
-# Constructors
+# Constructor
 function SVAG(
 		vrg, x0, stepsize, innoweight, rng; weights=nothing, prox_f=IndFree())
 
+	T = eltype(x0)
+	stepsize = T(stepsize)
+	innoweight = T(innoweight)
+
+	x = similar(x0)
+	x_tmp = similar(x0)
+
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
-	SVAG(vrg, prox_f, x0, stepsize, innoweight, sampling)
+
+	SVAG(x,x_tmp,x0,vrg,prox_f,stepsize,innoweight,sampling)
 end
 # Interface
 function initialize!(alg::SVAG)
@@ -113,8 +114,8 @@ function update!(alg::SVAG, iter, stage)
 	(i,p) = alg.sampling()
 
 	n = length(alg.vrg)
-	sample_innoweight = alg.innoweight/(n*n*p)
-	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, sample_innoweight)
+	innoweight_i = alg.innoweight/(n*n*p)
+	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, innoweight_i)
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
@@ -135,31 +136,26 @@ struct ASVAG{X,VRG,PF,T,S,F} <: VRAlgorithm
 	prox_f::PF
 	stepsize::T
 	innoweight::Base.RefValue{T}
+	overlap::Base.RefValue{T}
 	biascorr::Base.RefValue{T}
 	decay::T
 	sampling::S
 	stepcorrection::F
-
-	function ASVAG(vrg, prox_f, x0, stepsize, sampling, stepcorrection)
-		x = similar(x0)
-		x_tmp = similar(x0)
-		innoweight = length(vrg)*one(stepsize)
-		biascorr = zero(stepsize)
-		decay = 1/length(vrg)
-
-		X,VRG,PF,T,S,F=typeof.((x,vrg,prox_f,stepsize,sampling,stepcorrection))
-		new{X,VRG,PF,T,S,F}(
-			x,x_tmp,x0,
-			vrg,prox_f,
-			stepsize,Ref(innoweight),Ref(biascorr),decay,
-			sampling,
-			stepcorrection)
-	end
 end
-# Constructors
+# Constructor
 function ASVAG(
 		vrg, x0, stepsize, rng;
 		weights=nothing, prox_f=IndFree(), enforce_step=false)
+
+	T = eltype(x0)
+	stepsize = T(stepsize)
+	innoweight = T(length(vrg))
+	overlap = one(T)
+	biascorr = one(T)
+	decay = T(1/length(vrg))
+
+	x = similar(x0)
+	x_tmp = similar(x0)
 
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
@@ -171,13 +167,18 @@ function ASVAG(
 	else
 		stepcorrection = (n,theta) -> 1
 	end
-	ASVAG(vrg, prox_f, x0, stepsize, sampling, stepcorrection)
+	ASVAG(
+		x,x_tmp,x0,vrg,prox_f,
+		stepsize, Ref(innoweight), Ref(overlap), Ref(biascorr), decay,
+		sampling, stepcorrection
+		)
 end
 # Interface
 function initialize!(alg::ASVAG)
 	reset!(alg.vrg)
 	alg.x .= alg.x0
-	alg.innoweight[] = length(alg.vrg)*one(alg.innoweight[])
+	alg.innoweight[] = length(alg.vrg)
+	alg.overlap[] = one(alg.overlap[])
 	alg.biascorr[] = one(alg.biascorr[])
 end
 function update!(alg::ASVAG, iter, stage)
@@ -185,20 +186,21 @@ function update!(alg::ASVAG, iter, stage)
 	n = length(alg.vrg)
 
 	# Calc innovation weight and corrected stepsize
-	iw_unbias = alg.innoweight[]/alg.biascorr[]
-	sample_innoweight = iw_unbias/(n*n*p)
-	stepsize_corr = alg.stepsize*alg.stepcorrection(n,iw_unbias)
+	alg.innoweight[] = n*alg.overlap[]/alg.biascorr[]
+	innoweight_i = alg.innoweight[]/(n*n*p)
+	stepsize = alg.stepsize*alg.stepcorrection(n,alg.innoweight[])
 
 	# Take VRSG step
-	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, sample_innoweight)
-	alg.x_tmp .= alg.x .- stepsize_corr.*alg.x_tmp
-	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
+	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, innoweight_i)
+	alg.x_tmp .= alg.x .- stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, stepsize)
 
 	# Update innovation weight
 	grad_approx!(alg.x_tmp, alg.vrg)
-	np(v) = (r = norm(v); ifelse(r > eps(), r, one(r)))
-	overlap = n*abs(dot(alg.vrg[i], alg.x_tmp))/np(alg.vrg[i])/np(alg.x_tmp)
-	alg.innoweight[] = overlap + (1 - alg.decay)*alg.innoweight[]
+	overlap_new =
+		abs(dot(alg.vrg[i], alg.x_tmp))/
+		(norm(alg.vrg[i])*norm(alg.x_tmp) + 1e-8)
+	alg.overlap[] = overlap_new + (1 - alg.decay)*alg.overlap[]
 	alg.biascorr[] = 1 + (1 - alg.decay)*alg.biascorr[]
 end
 stageupdate!(alg::ASVAG) = 1
@@ -219,19 +221,18 @@ struct SVRG{X,VRG,PF,T,I,S} <: VRAlgorithm
 	stepsize::T
 	stagelen::I
 	sampling::S
-
-	function SVRG(vrg,prox_f,x0,stepsize,stagelen,sampling)
-		x = similar(x0)
-		x_tmp = similar(x0)
-		X,VRG,PF,T,I,S = typeof.((x,vrg,prox_f,stepsize,stagelen,sampling))
-		new{X,VRG,PF,T,I,S}(x,x_tmp,x0,vrg,prox_f,stepsize,stagelen,sampling)
-	end
 end
-# Constructors
+# Constructor
 function SVRG(vrg, x0, stepsize, stagelen, rng;weights=nothing,prox_f=IndFree())
+	T = eltype(x0)
+	stepsize = T(stepsize)
+
+	x = similar(x0)
+	x_tmp = similar(x0)
+
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
-	SVRG(vrg, prox_f, x0, stepsize, stagelen, sampling)
+	SVRG(x,x_tmp,x0,vrg,prox_f,stepsize,stagelen,sampling)
 end
 # Interface
 function initialize!(alg::SVRG)
@@ -240,8 +241,8 @@ function initialize!(alg::SVRG)
 end
 function update!(alg::SVRG, iter, stage)
 	(i,p) = alg.sampling()
-	innv_weight = 1/(length(alg.vrg)*p)
-	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	innoweight = 1/(length(alg.vrg)*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innoweight)
 	alg.x_tmp .= alg.x .- alg.stepsize.*alg.x_tmp
 	prox!(alg.x, alg.prox_f, alg.x_tmp, alg.stepsize)
 end
@@ -267,19 +268,18 @@ struct LSVRG{X,VRG,PF,T,Q,RNG,S} <:VRAlgorithm
 	q::Q
 	rng::RNG
 	sampling::S
-
-	function LSVRG(vrg,prox_f,x0,stepsize,q,rng,sampling)
-		x = similar(x0)
-		x_tmp = similar(x0)
-		X,VRG,PF,T,Q,RNG,S = typeof.((x,vrg,prox_f,stepsize,q,rng,sampling))
-		new{X,VRG,PF,T,Q,RNG,S}(x,x_tmp,x0,vrg,prox_f,stepsize,q,rng,sampling)
-	end
 end
-# Constructors
+# Constructor
 function LSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
+	T = eltype(x0)
+	stepsize = T(stepsize)
+
+	x = similar(x0)
+	x_tmp = similar(x0)
+
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
-	LSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
+	LSVRG(x,x_tmp,x0,vrg,prox_f,stepsize,q,rng,sampling)
 end
 # Interface
 function initialize!(alg::LSVRG)
@@ -289,8 +289,8 @@ end
 function update!(alg::LSVRG, iter, stage)
 	(i,p) = alg.sampling()
 
-	innv_weight = 1/(length(alg.vrg)*p)
-	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	innoweight = 1/(length(alg.vrg)*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innoweight)
 
 	rand(alg.rng) < alg.q && store_from_point!(alg.vrg, alg.x)
 
@@ -316,19 +316,18 @@ struct ILSVRG{X,VRG,PF,T,Q,RNG,S} <:VRAlgorithm
 	q::Q
 	rng::RNG
 	sampling::S
-
-	function ILSVRG(vrg,prox_f,x0,stepsize,q,rng,sampling)
-		x = similar(x0)
-		x_tmp = similar(x0)
-		X,VRG,PF,T,Q,RNG,S = typeof.((x,vrg,prox_f,stepsize,q,rng,sampling))
-		new{X,VRG,PF,T,Q,RNG,S}(x,x_tmp,x0,vrg,prox_f,stepsize,q,rng,sampling)
-	end
 end
-# Constructors
+# Constructor
 function ILSVRG(vrg, x0, stepsize, q, rng; weights=nothing,prox_f=IndFree())
+	T = eltype(x0)
+	stepsize = T(stepsize)
+
+	x = similar(x0)
+	x_tmp = similar(x0)
+
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
-	ILSVRG(vrg, prox_f, x0, stepsize, q, rng, sampling)
+	ILSVRG(x,x_tmp,x0,vrg,prox_f,stepsize,q,rng,sampling)
 end
 # Interface
 function initialize!(alg::ILSVRG)
@@ -339,8 +338,8 @@ function update!(alg::ILSVRG, iter, stage)
 	(i,p) = alg.sampling()
 	n = length(alg.vrg)
 
-	innv_weight = 1/(n*p)
-	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	innoweight = 1/(n*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innoweight)
 
 	for j = 1:n
 		rand(alg.rng) < alg.q && store_from_point!(alg.vrg, alg.x, j)
@@ -369,24 +368,21 @@ struct QSAGA{X,VRG,PF,T,RNG,S} <:VRAlgorithm
 	replace::Bool
 	rng::RNG
 	sampling::S
-
-	function QSAGA(vrg,prox_f,x0,stepsize,q,replace,rng,sampling)
-		x = similar(x0)
-		x_tmp = similar(x0)
-		dualindex = Vector{Int}(undef,q)
-
-		X,VRG,PF,T,RNG,S = typeof.((x,vrg,prox_f,stepsize,rng,sampling))
-		new{X,VRG,PF,T,RNG,S}(
-			x,x_tmp,x0,vrg,prox_f,stepsize,dualindex,replace,rng,sampling)
-	end
 end
-# Constructors
+# Constructor
 function QSAGA(
 		vrg, x0, stepsize, q, rng;
 		weights=nothing, prox_f=IndFree(), replace=true)
+	T = eltype(x0)
+	stepsize = T(stepsize)
+
+	x = similar(x0)
+	x_tmp = similar(x0)
+	dualindex = Vector{Int}(undef,q)
+
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
-	QSAGA(vrg, prox_f, x0, stepsize, q, replace, rng, sampling)
+	QSAGA(x,x_tmp,x0,vrg,prox_f,stepsize,dualindex,replace,rng,sampling)
 end
 # Interface
 function initialize!(alg::QSAGA)
@@ -397,8 +393,8 @@ function update!(alg::QSAGA, iter, stage)
 	n = length(alg.vrg)
 	(i,p) = alg.sampling()
 
-	innv_weight = 1/(n*p)
-	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innv_weight)
+	innoweight = 1/(n*p)
+	vrgrad!(alg.x_tmp, alg.vrg, alg.x, i, innoweight)
 
 	sample!(alg.rng, 1:n, alg.dualindex, replace=alg.replace)
 	store_from_point!(alg.vrg, alg.x, alg.dualindex)

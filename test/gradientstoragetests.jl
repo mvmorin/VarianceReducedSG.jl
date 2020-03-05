@@ -384,7 +384,7 @@ function correct_innovation(g, n, dim, f)
 	@test isapprox(res, new_y - old_y)
 	store_from_innov!(g, res, state)
 	state = innov!(res, g, x, i)
-	@test isapprox(res, zeros(dim), atol=1e-12)
+	@test isapprox(res, zeros(dim), atol=eps()^(2/3))
 end
 
 
