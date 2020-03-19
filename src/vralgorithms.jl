@@ -136,9 +136,10 @@ struct ASVAG{X,VRG,PF,T,S,F} <: VRAlgorithm
 	prox_f::PF
 	stepsize::T
 	innoweight::Base.RefValue{T}
-	overlap::Base.RefValue{T}
-	biascorr::Base.RefValue{T}
+	innov::X
+	expinnov::X
 	decay::T
+	biascorr::Base.RefValue{T}
 	sampling::S
 	stepcorrection::F
 end
@@ -150,12 +151,14 @@ function ASVAG(
 	T = eltype(x0)
 	stepsize = T(stepsize)
 	innoweight = T(length(vrg))
-	overlap = one(T)
-	biascorr = one(T)
-	decay = T(1/length(vrg))
 
 	x = similar(x0)
 	x_tmp = similar(x0)
+
+	innov = similar(x0)
+	expinnov = zero(x0)
+	biascorr = zero(T)
+	decay = T(1/10)
 
 	sampling = (weights == nothing) ?	UniformSampling(rng, length(vrg)) :
 										WeightedSampling(rng, weights)
@@ -168,8 +171,8 @@ function ASVAG(
 		stepcorrection = (n,theta) -> 1
 	end
 	ASVAG(
-		x,x_tmp,x0,vrg,prox_f,
-		stepsize, Ref(innoweight), Ref(overlap), Ref(biascorr), decay,
+		x, x_tmp, x0, vrg, prox_f, stepsize, Ref(innoweight),
+		innov, expinnov, decay, Ref(biascorr),
 		sampling, stepcorrection
 		)
 end
@@ -178,30 +181,34 @@ function initialize!(alg::ASVAG)
 	reset!(alg.vrg)
 	alg.x .= alg.x0
 	alg.innoweight[] = length(alg.vrg)
-	alg.overlap[] = one(alg.overlap[])
-	alg.biascorr[] = one(alg.biascorr[])
+	alg.expinnov .= zero(eltype(alg.expinnov))
+	alg.biascorr[] = zero(alg.biascorr[])
 end
 function update!(alg::ASVAG, iter, stage)
 	(i,p) = alg.sampling()
 	n = length(alg.vrg)
 
-	# Calc innovation weight and corrected stepsize
-	alg.innoweight[] = n*alg.overlap[]/alg.biascorr[]
-	innoweight_i = alg.innoweight[]/(n*n*p)
-	stepsize = alg.stepsize*alg.stepcorrection(n,alg.innoweight[])
+	# Update expected innovation
+	state = innov!(alg.innov, alg.vrg, alg.x, i)
+	alg.expinnov .= alg.innov .+ (1-alg.decay).*alg.expinnov
+	alg.biascorr[] = 1 + (1-alg.decay)*alg.biascorr[]
+
+	# Calc innovation weight and make stepsize correction
+	alg.innoweight[] =
+		n*dot(alg.expinnov, alg.innov) /
+		(alg.biascorr[]*norm(alg.innov)^2 + 1e-8)
+	lim = n
+	alg.innoweight[] = min(lim, alg.innoweight[])
+	alg.innoweight[] = max(-lim, alg.innoweight[])
+
+	innoweight_i = alg.innoweight[] / (n*n*p)
+	stepsize = alg.stepsize * alg.stepcorrection(n,alg.innoweight[])
 
 	# Take VRSG step
-	vrgrad_store!(alg.x_tmp, alg.vrg, alg.x, i, innoweight_i)
-	alg.x_tmp .= alg.x .- stepsize.*alg.x_tmp
-	prox!(alg.x, alg.prox_f, alg.x_tmp, stepsize)
-
-	# Update innovation weight
 	grad_approx!(alg.x_tmp, alg.vrg)
-	overlap_new =
-		abs(dot(alg.vrg[i], alg.x_tmp))/
-		(norm(alg.vrg[i])*norm(alg.x_tmp) + 1e-8)
-	alg.overlap[] = overlap_new + (1 - alg.decay)*alg.overlap[]
-	alg.biascorr[] = 1 + (1 - alg.decay)*alg.biascorr[]
+	alg.x_tmp .= alg.x .- stepsize.*(innoweight_i.*alg.innov .+ alg.x_tmp)
+	prox!(alg.x, alg.prox_f, alg.x_tmp, stepsize)
+	store_from_innov!(alg.vrg, alg.innov, state)
 end
 stageupdate!(alg::ASVAG) = 1
 primiterates(alg::ASVAG) = alg.x
