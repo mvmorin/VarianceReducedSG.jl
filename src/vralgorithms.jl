@@ -1,4 +1,4 @@
-export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA, ILSVRG, ASVAG
+export SAGA, SVRG, LSVRG, SVAG, SAG, QSAGA, ILSVRG, ASVAG, SG
 
 export primiterates, dualiterates
 
@@ -413,3 +413,51 @@ stageupdate!(alg::QSAGA) = 1
 primiterates(alg::QSAGA) = alg.x
 dualiterates(alg::QSAGA) = alg.vrg
 expectedstagelen(alg::QSAGA) = 1
+
+
+
+##############################
+# SG, ordinary stoachastic gradient, no variance reduction
+struct SG{X,T,VRG,PF,SF,RNG,S} <: VRAlgorithm
+	x::X
+	x_tmp::X
+	x0::X
+	vrg::VRG
+	prox_f::PF
+	stepsize_f::SF
+	iter::Base.RefValue{T}
+	rng::RNG
+	sampling::S
+end
+# Constructor
+function SG(vrg, x0, stepsize_f, rng; weights=nothing, prox_f=IndFree())
+	iter = zero(eltype(x0))
+
+	x = similar(x0)
+	x_tmp = similar(x0)
+
+	sampling = (weights == nothing) ?
+		UniformSampling(rng, length(vrg)) :
+		WeightedSampling(rng, weights)
+
+	SG(x,x_tmp,x0,vrg,prox_f,stepsize_f,Ref(iter),rng,sampling)
+end
+# Interface
+function initialize!(alg::SG)
+	reset!(alg.vrg)
+	alg.x .= alg.x0
+end
+function update!(alg::SG, iter, stage)
+	(i,p) = alg.sampling()
+
+	stepsize = alg.stepsize_f(alg.iter[])
+	alg.iter[] += 1
+
+	grad!(alg.x_tmp, alg.vrg, alg.x, i)
+	alg.x_tmp .= alg.x .- stepsize.*alg.x_tmp
+	prox!(alg.x, alg.prox_f, alg.x_tmp, stepsize)
+end
+stageupdate!(alg::SG) = 1
+primiterates(alg::SG) = alg.x
+dualiterates(alg::SG) = alg.vrg
+expectedstagelen(alg::SG) = 1

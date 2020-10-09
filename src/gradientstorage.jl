@@ -41,9 +41,10 @@ function grad!(res, vrg::AbstractVRGradient, x)
 	grad!(res, vrg, x, 1)
 	res_i = similar(res)
 	for i = 2:length(vrg)
-		grad!(res_i, vrg, x, 1)
-		res .+= res_i./length(vrg)
+		grad!(res_i, vrg, x, i)
+		res .+= res_i
 	end
+	res ./= length(vrg)
 	return res
 end
 
@@ -53,7 +54,7 @@ end
 struct VRGradient{T<:Real, Vg<:AbstractArray{T}, GF, N} <: AbstractVRGradient{N}
 	grad!::GF
 	ysum::Vg
-	y::Vector{Vg}	
+	y::Vector{Vg}
 
 	function VRGradient(grad!, buf, n)
 		ysum = similar(buf)
@@ -135,7 +136,7 @@ struct LinearVRG{
 	ysum::Vg
 	y::Vector{T}
 	data::Vd
-	
+
 	function LinearVRG(grad, data, buf)
 		y = Vector{eltype(buf)}(undef, length(data))
 		vrg = new{

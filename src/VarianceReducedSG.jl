@@ -28,15 +28,15 @@ function iterate!(
 	!warmstart && initialize!(alg)
 
 	log!(logger, alg, 0, 0)
-	
+
 	iter = 0
 	for stage = 1:nstages
 		stagelen = stageupdate!(alg, iter, stage)
-		
+
 		for _ = 1:stagelen
 			iter += 1
 			update!(alg, iter, stage)
-			
+
 			iter % iterperlog == 0 && log!(logger, alg, iter, stage)
 		end
 	end
